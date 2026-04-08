@@ -104,6 +104,13 @@ interface LogEntry {
   endedAt: number | null
 }
 
+const ALL_SOURCES = [
+  { id: 'greenhouse', label: 'Greenhouse' },
+  { id: 'lever', label: 'Lever' },
+  { id: 'google_jobs', label: 'Google Jobs' },
+  { id: 'linkedin', label: 'LinkedIn' },
+]
+
 const TIMED_PREFIXES = ['Scraping ', 'Saving ', 'Scoring ']
 
 function isTimed(msg: string) {
@@ -114,6 +121,9 @@ export function MatchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [results, setResults] = useState<ScanResult[]>([])
   const [scanning, setScanning] = useState(false)
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(ALL_SOURCES.map(s => s.id)))
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const optionsRef = useRef<HTMLDivElement | null>(null)
   const [scanStatus, setScanStatus] = useState<string | null>(null)
   const [progressLog, setProgressLog] = useState<LogEntry[]>([])
   const [tick, setTick] = useState(0)
@@ -151,6 +161,16 @@ export function MatchesPage() {
     }
   }, [progressLog, logExpanded])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) {
+        setOptionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const appendLog = (msg: string) => {
     if (seenMessages.current.has(msg)) return
     seenMessages.current.add(msg)
@@ -173,7 +193,8 @@ export function MatchesPage() {
     setScanStatus(null)
     appendLog('Starting scan…')
     try {
-      const { scan_id } = await scanApi.trigger(currentProfile.id)
+      const sources = selectedSources.size === ALL_SOURCES.length ? undefined : [...selectedSources]
+      const { scan_id } = await scanApi.trigger(currentProfile.id, sources)
       pollRef.current = setInterval(async () => {
         const state = await scanApi.status(scan_id)
         if (state.message) appendLog(state.message)
@@ -212,13 +233,49 @@ export function MatchesPage() {
         <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
         <div className="flex items-center gap-3">
           {scanStatus && <span className="text-sm text-gray-500">{scanStatus}</span>}
-          <button
-            onClick={startScan}
-            disabled={scanning}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {scanning ? 'Scanning…' : 'Run Scan'}
-          </button>
+          {/* Split button: Run Scan + options chevron */}
+          <div ref={optionsRef} className="relative flex">
+            <button
+              onClick={startScan}
+              disabled={scanning || selectedSources.size === 0}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-l-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              {scanning ? 'Scanning…' : 'Run Scan'}
+            </button>
+            <button
+              onClick={() => setOptionsOpen(v => !v)}
+              disabled={scanning}
+              aria-label="Scan options"
+              className="px-2 py-2 bg-indigo-600 text-white rounded-r-md border-l border-indigo-500 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              <svg className={`w-3.5 h-3.5 transition-transform ${optionsOpen ? 'rotate-180' : ''}`} viewBox="0 0 10 6" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M1 1l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {optionsOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-2">
+                <p className="px-3 pb-1.5 pt-0.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
+                {ALL_SOURCES.map(({ id, label }) => (
+                  <label key={id} className="flex items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.has(id)}
+                      onChange={() => {
+                        setSelectedSources(prev => {
+                          const next = new Set(prev)
+                          next.has(id) ? next.delete(id) : next.add(id)
+                          return next
+                        })
+                      }}
+                      className="accent-indigo-600"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
