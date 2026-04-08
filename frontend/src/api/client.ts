@@ -102,8 +102,8 @@ export const credentialsApi = {
 }
 
 export const scanApi = {
-  trigger: (profileId: number) =>
-    api.post<ScanResponse>('/scan', { profile_id: profileId }).then(r => r.data),
+  trigger: (profileId: number, sources?: string[]) =>
+    api.post<ScanResponse>('/scan', { profile_id: profileId, sources: sources ?? null }).then(r => r.data),
   status: (scanId: string) =>
     api.get<{ scan_id: string; status: string; message?: string; error?: string; jobs_found?: number }>(`/scan/${scanId}`).then(r => r.data),
 }

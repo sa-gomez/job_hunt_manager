@@ -17,7 +17,7 @@ async def trigger_scan(
     db: AsyncSession = Depends(get_db),
 ):
     scan_id = str(uuid.uuid4())
-    background_tasks.add_task(run_scan, scan_id, body.profile_id, db)
+    background_tasks.add_task(run_scan, scan_id, body.profile_id, db, body.sources)
     return ScanResponse(
         scan_id=scan_id,
         status="running",

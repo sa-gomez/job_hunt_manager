@@ -26,7 +26,7 @@ def get_scan_state(scan_id: str) -> dict | None:
     return _scan_state.get(scan_id)
 
 
-async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
+async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: list[str] | None = None) -> None:
     _scan_state[scan_id] = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat()}
     try:
         profile = await db.get(UserProfile, profile_id)
@@ -55,12 +55,13 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
             except Exception as exc:
                 logger.warning("Failed to decrypt credentials for service %s: %s", row.service, exc)
 
-        scrapers = [
+        all_scrapers = [
             ("greenhouse", GreenhouseScraper(), creds_map.get("greenhouse")),
             ("lever", LeverScraper(), creds_map.get("lever")),
             ("google_jobs", GoogleJobsScraper(), creds_map.get("serpapi")),
             ("linkedin", LinkedInScraper(), creds_map.get("linkedin")),
         ]
+        scrapers = [s for s in all_scrapers if sources is None or s[0] in sources]
 
         all_jobs: list[JobPosting] = []
         scraper_labels = {"greenhouse": "Greenhouse", "lever": "Lever", "google_jobs": "Google Jobs", "linkedin": "LinkedIn"}
