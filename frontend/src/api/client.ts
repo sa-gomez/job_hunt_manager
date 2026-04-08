@@ -105,7 +105,7 @@ export const scanApi = {
   trigger: (profileId: number) =>
     api.post<ScanResponse>('/scan', { profile_id: profileId }).then(r => r.data),
   status: (scanId: string) =>
-    api.get<{ scan_id: string; status: string; jobs_found?: number }>(`/scan/${scanId}`).then(r => r.data),
+    api.get<{ scan_id: string; status: string; message?: string; error?: string; jobs_found?: number }>(`/scan/${scanId}`).then(r => r.data),
 }
 
 export const jobsApi = {

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 import httpx
 
@@ -9,12 +10,12 @@ from backend.scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-# Maps company name (lowercase) → Lever posting slug
+# Maps company name (lowercase, no spaces/punctuation) → Lever posting slug
 LEVER_SLUGS: dict[str, str] = {
     "netflix": "netflix",
     "coinbase": "coinbase",
     "plaid": "plaid",
-    "scale ai": "scaleai",
+    "scaleai": "scaleai",
     "scale": "scaleai",
     "lever": "lever",
     "rippling": "rippling",
@@ -25,7 +26,25 @@ LEVER_SLUGS: dict[str, str] = {
     "asana": "asana",
     "carta": "carta",
     "checkr": "checkr",
+    "anthropic": "anthropic",
+    "openai": "openai",
+    "together": "together",
+    "modal": "modal",
+    "replit": "replit",
+    "retool": "retool",
+    "loom": "loom",
+    "mercury": "mercury",
 }
+
+DEFAULT_LEVER_SLUGS = [
+    "netflix", "coinbase", "rippling", "brex", "gusto", "airtable",
+    "asana", "anthropic", "openai", "retool", "replit",
+]
+
+
+def _normalize(name: str) -> str:
+    """Lowercase and strip all spaces and punctuation for fuzzy matching."""
+    return re.sub(r"[\s\-_.,&'/]", "", name.lower())
 
 
 class LeverScraper(BaseScraper):
@@ -46,13 +65,17 @@ class LeverScraper(BaseScraper):
         return results
 
     def _resolve_slugs(self, companies: list[str]) -> list[str]:
+        if not companies:
+            return list(DEFAULT_LEVER_SLUGS)
+
         slugs = []
         for company in companies:
-            key = company.lower().strip()
-            if key in LEVER_SLUGS:
-                slugs.append(LEVER_SLUGS[key])
+            normalized = _normalize(company)
+            if normalized in LEVER_SLUGS:
+                slugs.append(LEVER_SLUGS[normalized])
             else:
-                slugs.append(key.replace(" ", ""))
+                # Fall back to the normalized name — works for most boards
+                slugs.append(normalized)
         return slugs
 
     async def _fetch_postings(

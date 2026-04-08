@@ -11,7 +11,7 @@ from backend.scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-# Maps company name (lowercase) → Greenhouse board slug
+# Maps company name (lowercase, no spaces/punctuation) → Greenhouse board slug
 GREENHOUSE_SLUGS: dict[str, str] = {
     "stripe": "stripe",
     "airbnb": "airbnb",
@@ -26,7 +26,26 @@ GREENHOUSE_SLUGS: dict[str, str] = {
     "elastic": "elastic",
     "twilio": "twilio",
     "pagerduty": "pagerduty",
+    "squarespace": "squarespace",
+    "hubspot": "hubspot",
+    "zendesk": "zendesk",
+    "mongodb": "mongodb",
+    "cloudflare": "cloudflare",
+    "databricks": "databricks",
+    "snowflake": "snowflake",
+    "confluent": "confluent",
+    "gitlab": "gitlab",
 }
+
+DEFAULT_GREENHOUSE_SLUGS = [
+    "stripe", "airbnb", "shopify", "notion", "figma", "vercel", "discord",
+    "github", "cloudflare", "databricks", "gitlab", "hubspot", "mongodb",
+]
+
+
+def _normalize(name: str) -> str:
+    """Lowercase and strip all spaces and punctuation for fuzzy matching."""
+    return re.sub(r"[\s\-_.,&'/]", "", name.lower())
 
 
 class _HTMLStripper(HTMLParser):
@@ -65,14 +84,17 @@ class GreenhouseScraper(BaseScraper):
         return results
 
     def _resolve_slugs(self, companies: list[str]) -> list[str]:
+        if not companies:
+            return list(DEFAULT_GREENHOUSE_SLUGS)
+
         slugs = []
         for company in companies:
-            key = company.lower().strip()
-            if key in GREENHOUSE_SLUGS:
-                slugs.append(GREENHOUSE_SLUGS[key])
+            normalized = _normalize(company)
+            if normalized in GREENHOUSE_SLUGS:
+                slugs.append(GREENHOUSE_SLUGS[normalized])
             else:
-                # Try the company name as-is (many boards use the company name directly)
-                slugs.append(key.replace(" ", ""))
+                # Fall back to the normalized name — works for most boards
+                slugs.append(normalized)
         return slugs
 
     async def _fetch_board(self, client: httpx.AsyncClient, slug: str) -> list[JobPosting]:
