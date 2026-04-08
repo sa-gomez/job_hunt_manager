@@ -1,0 +1,309 @@
+import { useEffect, useState } from 'react'
+import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+
+const EMPTY: ProfileCreate = {
+  full_name: '',
+  email: '',
+  location: '',
+  remote_ok: true,
+  skills: [],
+  experience_years: undefined,
+  experience_notes: '',
+  target_roles: [],
+  target_companies: [],
+  salary_min: undefined,
+  salary_max: undefined,
+}
+
+function TagInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string[]
+  onChange: (v: string[]) => void
+}) {
+  const [input, setInput] = useState('')
+
+  const add = () => {
+    const trimmed = input.trim()
+    if (trimmed && !value.includes(trimmed)) {
+      onChange([...value, trimmed])
+    }
+    setInput('')
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <div className="flex gap-2 mb-2 flex-wrap">
+        {value.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-sm"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((t) => t !== tag))}
+              className="hover:text-indigo-600"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
+          placeholder={`Add ${label.toLowerCase()} and press Enter`}
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CredentialsSection({ profileId }: { profileId: number }) {
+  const [creds, setCreds] = useState<CredentialInfo[]>([])
+  const [form, setForm] = useState({ service: 'linkedin', username: '', password: '' })
+  const [saving, setSaving] = useState(false)
+
+  const load = async () => {
+    try {
+      setCreds(await credentialsApi.list(profileId))
+    } catch {}
+  }
+
+  useEffect(() => { load() }, [profileId])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await credentialsApi.store({ profile_id: profileId, ...form })
+      await load()
+      setForm((f) => ({ ...f, username: '', password: '' }))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async (service: string) => {
+    await credentialsApi.delete(service, profileId)
+    await load()
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Site Credentials</h2>
+      {creds.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {creds.map((c) => (
+            <div key={c.service} className="flex items-center justify-between py-2 border-b border-gray-100">
+              <div>
+                <span className="font-medium capitalize">{c.service}</span>
+                <span className="ml-2 text-xs text-green-600">✓ configured</span>
+              </div>
+              <button
+                onClick={() => remove(c.service)}
+                className="text-sm text-red-500 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+          <select
+            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={form.service}
+            onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
+          >
+            <option value="linkedin">LinkedIn</option>
+            <option value="serpapi">SerpAPI (Google Jobs)</option>
+          </select>
+        </div>
+        {form.service === 'linkedin' && (
+          <>
+            <input
+              className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Email"
+              value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+            />
+            <input
+              type="password"
+              className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Password"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            />
+          </>
+        )}
+        {form.service === 'serpapi' && (
+          <input
+            className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="SerpAPI Key"
+            value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+          />
+        )}
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save Credentials'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function ProfilePage() {
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [form, setForm] = useState<ProfileCreate>(EMPTY)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    profileApi.list().then((ps) => {
+      setProfiles(ps)
+      if (ps.length > 0) {
+        const p = ps[0]
+        setForm({
+          full_name: p.full_name,
+          email: p.email ?? '',
+          location: p.location ?? '',
+          remote_ok: p.remote_ok,
+          skills: p.skills,
+          experience_years: p.experience_years ?? undefined,
+          experience_notes: p.experience_notes ?? '',
+          target_roles: p.target_roles,
+          target_companies: p.target_companies,
+          salary_min: p.salary_min ?? undefined,
+          salary_max: p.salary_max ?? undefined,
+        })
+      }
+    })
+  }, [])
+
+  const current = profiles[0]
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        email: form.email || undefined,
+        experience_notes: form.experience_notes || undefined,
+      }
+      let updated: Profile
+      if (current) {
+        updated = await profileApi.update(current.id, payload)
+        setProfiles([updated])
+      } else {
+        updated = await profileApi.create(payload)
+        setProfiles([updated])
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const field = (label: string, key: keyof ProfileCreate, type = 'text') => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <input
+        type={type}
+        className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        value={(form[key] as string | number | undefined) ?? ''}
+        onChange={(e) =>
+          setForm((f) => ({
+            ...f,
+            [key]: type === 'number' ? (e.target.value ? Number(e.target.value) : undefined) : e.target.value,
+          }))
+        }
+      />
+    </div>
+  )
+
+  return (
+    <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Your Profile</h1>
+
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        {field('Full Name', 'full_name')}
+        {field('Email', 'email', 'email')}
+        {field('Location', 'location')}
+
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="remote_ok"
+            checked={form.remote_ok ?? true}
+            onChange={(e) => setForm((f) => ({ ...f, remote_ok: e.target.checked }))}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600"
+          />
+          <label htmlFor="remote_ok" className="text-sm font-medium text-gray-700">Open to remote</label>
+        </div>
+
+        {field('Years of Experience', 'experience_years', 'number')}
+        {field('Salary Min (USD)', 'salary_min', 'number')}
+        {field('Salary Max (USD)', 'salary_max', 'number')}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Experience Notes</label>
+          <textarea
+            className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            rows={3}
+            value={form.experience_notes ?? ''}
+            onChange={(e) => setForm((f) => ({ ...f, experience_notes: e.target.value }))}
+          />
+        </div>
+
+        <TagInput
+          label="Skills"
+          value={form.skills ?? []}
+          onChange={(v) => setForm((f) => ({ ...f, skills: v }))}
+        />
+        <TagInput
+          label="Target Roles"
+          value={form.target_roles ?? []}
+          onChange={(v) => setForm((f) => ({ ...f, target_roles: v }))}
+        />
+        <TagInput
+          label="Target Companies"
+          value={form.target_companies ?? []}
+          onChange={(v) => setForm((f) => ({ ...f, target_companies: v }))}
+        />
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Saving…' : saved ? '✓ Saved' : current ? 'Update Profile' : 'Create Profile'}
+        </button>
+      </form>
+
+      {current && <CredentialsSection profileId={current.id} />}
+    </div>
+  )
+}

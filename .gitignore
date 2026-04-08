@@ -8,3 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment secrets
+.env
+.env.*
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Frontend dependencies and build output
+node_modules/
+frontend/dist/

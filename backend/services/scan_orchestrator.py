@@ -1,0 +1,129 @@
+import asyncio
+import logging
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models.credential import EncryptedCredential
+from backend.models.job import JobPosting
+from backend.models.profile import UserProfile
+from backend.models.scan import ScanResult
+from backend.scrapers.google_jobs import GoogleJobsScraper
+from backend.scrapers.greenhouse import GreenhouseScraper
+from backend.scrapers.lever import LeverScraper
+from backend.scrapers.linkedin import LinkedInScraper
+from backend.services import crypto
+from backend.services.matching import score_job
+
+logger = logging.getLogger(__name__)
+
+# In-memory scan state (sufficient for single-process dev; replace with Redis/ARQ later)
+_scan_state: dict[str, dict] = {}
+
+
+def get_scan_state(scan_id: str) -> dict | None:
+    return _scan_state.get(scan_id)
+
+
+async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
+    _scan_state[scan_id] = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat()}
+    try:
+        profile = await db.get(UserProfile, profile_id)
+        if not profile:
+            _scan_state[scan_id]["status"] = "error"
+            _scan_state[scan_id]["error"] = f"Profile {profile_id} not found"
+            return
+
+        # Load all credentials for this profile
+        creds_rows = (
+            await db.execute(
+                select(EncryptedCredential).where(
+                    EncryptedCredential.profile_id == profile_id
+                )
+            )
+        ).scalars().all()
+
+        creds_map: dict[str, dict] = {}
+        for row in creds_rows:
+            try:
+                creds_map[row.service] = {
+                    "username": crypto.decrypt(row.username_enc) if row.username_enc else None,
+                    "password": crypto.decrypt(row.password_enc) if row.password_enc else None,
+                    "extra": crypto.decrypt(row.extra_enc) if row.extra_enc else None,
+                }
+            except Exception as exc:
+                logger.warning("Failed to decrypt credentials for service %s: %s", row.service, exc)
+
+        scrapers = [
+            ("greenhouse", GreenhouseScraper(), creds_map.get("greenhouse")),
+            ("lever", LeverScraper(), creds_map.get("lever")),
+            ("google_jobs", GoogleJobsScraper(), creds_map.get("serpapi")),
+            ("linkedin", LinkedInScraper(), creds_map.get("linkedin")),
+        ]
+
+        scrape_tasks = [
+            scraper.scrape(profile, creds)
+            for _, scraper, creds in scrapers
+        ]
+        scrape_results = await asyncio.gather(*scrape_tasks, return_exceptions=True)
+
+        all_jobs: list[JobPosting] = []
+        for (name, _, _), result in zip(scrapers, scrape_results):
+            if isinstance(result, Exception):
+                logger.error("Scraper %s raised: %s", name, result)
+            else:
+                logger.info("Scraper %s returned %d jobs", name, len(result))
+                all_jobs.extend(result)
+
+        # Upsert job postings (dedup by source + external_id)
+        persisted_jobs: list[JobPosting] = []
+        for job in all_jobs:
+            try:
+                # Try to find existing
+                existing = None
+                if job.external_id:
+                    existing = (
+                        await db.execute(
+                            select(JobPosting).where(
+                                JobPosting.source == job.source,
+                                JobPosting.external_id == job.external_id,
+                            )
+                        )
+                    ).scalar_one_or_none()
+
+                if existing:
+                    persisted_jobs.append(existing)
+                else:
+                    db.add(job)
+                    await db.flush()
+                    persisted_jobs.append(job)
+            except Exception as exc:
+                logger.warning("Failed to persist job %s/%s: %s", job.source, job.external_id, exc)
+
+        await db.commit()
+
+        # Score and persist results
+        scan_results: list[ScanResult] = []
+        for job in persisted_jobs:
+            final_score, breakdown = score_job(profile, job)
+            result = ScanResult(
+                profile_id=profile_id,
+                job_id=job.id,
+                score=final_score,
+                score_breakdown=breakdown,
+            )
+            db.add(result)
+            scan_results.append(result)
+
+        await db.commit()
+
+        _scan_state[scan_id]["status"] = "complete"
+        _scan_state[scan_id]["jobs_found"] = len(persisted_jobs)
+        _scan_state[scan_id]["results_created"] = len(scan_results)
+
+    except Exception as exc:
+        logger.exception("Scan %s failed: %s", scan_id, exc)
+        _scan_state[scan_id]["status"] = "error"
+        _scan_state[scan_id]["error"] = str(exc)
