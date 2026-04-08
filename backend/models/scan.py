@@ -11,7 +11,7 @@ class ScanResult(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     scanned_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     profile_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False

@@ -22,8 +22,8 @@ def upgrade() -> None:
     op.create_table(
         'user_profiles',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('full_name', sa.String(255), nullable=False),
         sa.Column('email', sa.String(255), nullable=True),
         sa.Column('location', sa.String(255), nullable=True),
@@ -42,8 +42,8 @@ def upgrade() -> None:
     op.create_table(
         'credentials',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('profile_id', sa.Integer(), nullable=False),
         sa.Column('service', sa.String(100), nullable=False),
         sa.Column('username_enc', sa.Text(), nullable=True),
@@ -56,7 +56,7 @@ def upgrade() -> None:
     op.create_table(
         'job_postings',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('discovered_at', sa.DateTime(), nullable=False),
+        sa.Column('discovered_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('source', sa.String(50), nullable=False),
         sa.Column('external_id', sa.String(255), nullable=True),
         sa.Column('url', sa.Text(), nullable=True),
@@ -67,7 +67,7 @@ def upgrade() -> None:
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('salary_min', sa.Integer(), nullable=True),
         sa.Column('salary_max', sa.Integer(), nullable=True),
-        sa.Column('posted_at', sa.DateTime(), nullable=True),
+        sa.Column('posted_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('raw_json', sa.Text(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('source', 'external_id', name='uq_source_external'),
@@ -76,7 +76,7 @@ def upgrade() -> None:
     op.create_table(
         'scan_results',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('scanned_at', sa.DateTime(), nullable=False),
+        sa.Column('scanned_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('profile_id', sa.Integer(), nullable=False),
         sa.Column('job_id', sa.Integer(), nullable=False),
         sa.Column('score', sa.Float(), nullable=False),

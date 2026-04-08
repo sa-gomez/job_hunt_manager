@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.credential import EncryptedCredential
@@ -63,25 +62,23 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
             ("linkedin", LinkedInScraper(), creds_map.get("linkedin")),
         ]
 
-        scrape_tasks = [
-            scraper.scrape(profile, creds)
-            for _, scraper, creds in scrapers
-        ]
-        scrape_results = await asyncio.gather(*scrape_tasks, return_exceptions=True)
-
         all_jobs: list[JobPosting] = []
-        for (name, _, _), result in zip(scrapers, scrape_results):
-            if isinstance(result, Exception):
-                logger.error("Scraper %s raised: %s", name, result)
-            else:
+        scraper_labels = {"greenhouse": "Greenhouse", "lever": "Lever", "google_jobs": "Google Jobs", "linkedin": "LinkedIn"}
+        for name, scraper, creds in scrapers:
+            label = scraper_labels.get(name, name)
+            _scan_state[scan_id]["message"] = f"Scraping {label}…"
+            try:
+                result = await scraper.scrape(profile, creds)
                 logger.info("Scraper %s returned %d jobs", name, len(result))
                 all_jobs.extend(result)
+            except Exception as exc:
+                logger.error("Scraper %s raised: %s", name, exc)
 
         # Upsert job postings (dedup by source + external_id)
+        _scan_state[scan_id]["message"] = f"Saving {len(all_jobs)} job postings…"
         persisted_jobs: list[JobPosting] = []
         for job in all_jobs:
             try:
-                # Try to find existing
                 existing = None
                 if job.external_id:
                     existing = (
@@ -105,6 +102,7 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
         await db.commit()
 
         # Score and persist results
+        _scan_state[scan_id]["message"] = f"Scoring {len(persisted_jobs)} jobs…"
         scan_results: list[ScanResult] = []
         for job in persisted_jobs:
             final_score, breakdown = score_job(profile, job)
@@ -120,6 +118,7 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession) -> None:
         await db.commit()
 
         _scan_state[scan_id]["status"] = "complete"
+        _scan_state[scan_id]["message"] = f"Done — {len(persisted_jobs)} jobs found"
         _scan_state[scan_id]["jobs_found"] = len(persisted_jobs)
         _scan_state[scan_id]["results_created"] = len(scan_results)
 

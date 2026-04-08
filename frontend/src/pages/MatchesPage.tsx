@@ -98,12 +98,29 @@ function ResultCard({ result, onStatusChange }: { result: ScanResult; onStatusCh
   )
 }
 
+interface LogEntry {
+  message: string
+  startedAt: number
+  endedAt: number | null
+}
+
+const TIMED_PREFIXES = ['Scraping ', 'Saving ', 'Scoring ']
+
+function isTimed(msg: string) {
+  return TIMED_PREFIXES.some(p => msg.startsWith(p))
+}
+
 export function MatchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [results, setResults] = useState<ScanResult[]>([])
   const [scanning, setScanning] = useState(false)
   const [scanStatus, setScanStatus] = useState<string | null>(null)
+  const [progressLog, setProgressLog] = useState<LogEntry[]>([])
+  const [tick, setTick] = useState(0)
+  const [logExpanded, setLogExpanded] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const logContainerRef = useRef<HTMLDivElement | null>(null)
+  const seenMessages = useRef<Set<string>>(new Set())
 
   const currentProfile = profiles[0]
 
@@ -111,6 +128,13 @@ export function MatchesPage() {
     profileApi.list().then(setProfiles)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
+
+  // Drive live timers while scanning
+  useEffect(() => {
+    if (!scanning) return
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [scanning])
 
   const loadResults = async (profileId: number) => {
     const r = await jobsApi.results(profileId)
@@ -121,28 +145,54 @@ export function MatchesPage() {
     if (currentProfile) loadResults(currentProfile.id)
   }, [currentProfile?.id])
 
+  useEffect(() => {
+    if (logExpanded && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [progressLog, logExpanded])
+
+  const appendLog = (msg: string) => {
+    if (seenMessages.current.has(msg)) return
+    seenMessages.current.add(msg)
+    const now = Date.now()
+    setProgressLog(prev => {
+      // Finalize the previous entry if it's still running
+      const finalized = prev.length > 0 && prev[prev.length - 1].endedAt === null
+        ? [...prev.slice(0, -1), { ...prev[prev.length - 1], endedAt: now }]
+        : [...prev]
+      return [...finalized, { message: msg, startedAt: now, endedAt: null }]
+    })
+  }
+
   const startScan = async () => {
     if (!currentProfile) return
     setScanning(true)
-    setScanStatus('Starting scan…')
+    setLogExpanded(true)
+    setProgressLog([])
+    seenMessages.current = new Set()
+    setScanStatus(null)
+    appendLog('Starting scan…')
     try {
       const { scan_id } = await scanApi.trigger(currentProfile.id)
       pollRef.current = setInterval(async () => {
         const state = await scanApi.status(scan_id)
+        if (state.message) appendLog(state.message)
         if (state.status === 'complete') {
           clearInterval(pollRef.current!)
-          setScanStatus(`Done — ${state.jobs_found ?? 0} jobs found`)
+          setScanStatus(state.message ?? `Done — ${state.jobs_found ?? 0} jobs found`)
           setScanning(false)
+          setLogExpanded(false)
           await loadResults(currentProfile.id)
         } else if (state.status === 'error') {
           clearInterval(pollRef.current!)
-          setScanStatus('Scan failed. Check the server logs.')
+          const errMsg = state.error ?? 'Scan failed. Check the server logs.'
+          appendLog(errMsg)
+          setScanStatus(errMsg)
           setScanning(false)
-        } else {
-          setScanStatus('Scanning job boards…')
         }
       }, 2000)
     } catch {
+      appendLog('Failed to start scan.')
       setScanStatus('Failed to start scan.')
       setScanning(false)
     }
@@ -171,6 +221,40 @@ export function MatchesPage() {
           </button>
         </div>
       </div>
+
+      {progressLog.length > 0 && (
+        <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setLogExpanded(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <span>Scan log</span>
+            <span className="text-gray-400 text-xs">{logExpanded ? '▲ collapse' : '▼ expand'}</span>
+          </button>
+          {logExpanded && (
+            <div ref={logContainerRef} className="px-4 py-3 bg-white font-mono text-xs text-gray-600 space-y-1 max-h-48 overflow-y-auto">
+              {progressLog.map((entry, i) => {
+                const elapsed = isTimed(entry.message)
+                  ? Math.floor(((entry.endedAt ?? Date.now()) - entry.startedAt) / 1000)
+                  : null
+                // tick is read here so React re-renders this row every second while active
+                void tick
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-gray-300 select-none">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="flex-1">{entry.message}</span>
+                    {elapsed !== null && (
+                      <span className={entry.endedAt ? 'text-gray-400' : 'text-indigo-400'}>
+                        {elapsed}s
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {results.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
