@@ -16,8 +16,3 @@ async def get_db() -> AsyncSession:
         yield session
 
 
-async def create_tables() -> None:
-    from backend.models import credential, job, profile, scan  # noqa: F401
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)

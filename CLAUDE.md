@@ -16,7 +16,7 @@ Swagger UI: `http://localhost:8000/docs`
 
 ## Stack
 
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy (async), aiosqlite (SQLite, Postgres-ready), uv
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy (async), asyncpg (PostgreSQL), uv
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS (`@tailwindcss/vite`)
 - **Scraping:** Playwright (LinkedIn), httpx (Greenhouse, Lever, SerpAPI)
 - **Encryption:** `cryptography` Fernet — site credentials encrypted at rest
@@ -27,7 +27,7 @@ Swagger UI: `http://localhost:8000/docs`
 backend/
   app.py                  # FastAPI app factory + CORS + lifespan
   config.py               # pydantic-settings: DATABASE_URL, ENCRYPTION_KEY
-  database.py             # async engine, Base, get_db, create_tables
+  database.py             # async engine, Base, get_db
   models/
     profile.py            # UserProfile ORM
     credential.py         # EncryptedCredential ORM
@@ -97,13 +97,15 @@ Weighted score 0–1 stored per `ScanResult`:
 Copy `.env.example` to `.env` and fill in:
 
 ```
-DATABASE_URL=sqlite+aiosqlite:///./job_hunt_manager.db
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/job_hunt_manager
 ENCRYPTION_KEY=<fernet key>
 ```
 
 Generate a key: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
-`.env` and `*.db` are gitignored.
+Run migrations after setting up your DB: `uv run alembic upgrade head`
+
+`.env` is gitignored.
 
 ## Scraper notes
 
@@ -118,4 +120,4 @@ Follow the existing pattern: ORM model → Pydantic schema → router → includ
 
 Architectural notes:
 - Scan state is stored in-memory (`_scan_state` dict in `scan_orchestrator.py`) — fine for single-process dev; swap for ARQ/Celery when scaling.
-- No SQLite-specific types are used, so switching to Postgres only requires changing `DATABASE_URL`.
+- Database is PostgreSQL via asyncpg. Schema managed by Alembic (`migrations/`). Run `uv run alembic revision --autogenerate -m "description"` to generate new migrations.
