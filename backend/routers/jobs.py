@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.database import get_db
 from backend.models.job import JobPosting
 from backend.models.scan import ScanResult
-from backend.schemas.job import JobResponse, ScanResultResponse, ScanResultStatusUpdate
+from backend.schemas.job import JobResponse, ScanResultPage, ScanResultResponse, ScanResultStatusUpdate
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -31,24 +31,31 @@ async def get_job(job_id: int, db: AsyncSession = Depends(get_db)):
     return job
 
 
-@router.get("/results", response_model=list[ScanResultResponse])
+PAGE_SIZE = 25
+
+@router.get("/results", response_model=ScanResultPage)
 async def list_results(
     profile_id: int,
-    skip: int = 0,
-    limit: int = 50,
+    page: int = 1,
     db: AsyncSession = Depends(get_db),
 ):
+    offset = (page - 1) * PAGE_SIZE
+    total = (
+        await db.execute(
+            select(func.count()).select_from(ScanResult).where(ScanResult.profile_id == profile_id)
+        )
+    ).scalar_one()
     rows = (
         await db.execute(
             select(ScanResult)
             .where(ScanResult.profile_id == profile_id)
             .options(selectinload(ScanResult.job))
             .order_by(ScanResult.score.desc())
-            .offset(skip)
-            .limit(limit)
+            .offset(offset)
+            .limit(PAGE_SIZE)
         )
     ).scalars().all()
-    return rows
+    return ScanResultPage(items=rows, total=total, page=page, page_size=PAGE_SIZE)
 
 
 @router.patch("/results/{result_id}", response_model=ScanResultResponse)

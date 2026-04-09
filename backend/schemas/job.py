@@ -36,3 +36,10 @@ class ScanResultResponse(BaseModel):
 
 class ScanResultStatusUpdate(BaseModel):
     status: str
+
+
+class ScanResultPage(BaseModel):
+    items: list[ScanResultResponse]
+    total: int
+    page: int
+    page_size: int
