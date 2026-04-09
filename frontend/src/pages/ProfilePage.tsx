@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
 const CITIES = [
   'Atlanta', 'Austin', 'Baltimore', 'Boston', 'Charlotte', 'Chicago',
@@ -155,6 +156,80 @@ function TagInput({
           Add
         </button>
       </div>
+    </div>
+  )
+}
+
+function CompanyTagInput({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (v: string[]) => void
+}) {
+  const [input, setInput] = useState('')
+  const [showModal, setShowModal] = useState(false)
+
+  const add = () => {
+    const trimmed = input.trim()
+    if (trimmed && !value.includes(trimmed)) {
+      onChange([...value, trimmed])
+    }
+    setInput('')
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-sm font-medium text-gray-700">Target Companies</label>
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        >
+          + Bulk Add
+        </button>
+      </div>
+      <div className="flex gap-2 mb-2 flex-wrap">
+        {value.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-sm"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((t) => t !== tag))}
+              className="hover:text-indigo-600"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
+          placeholder="Add company and press Enter"
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+        >
+          Add
+        </button>
+      </div>
+      {showModal && (
+        <BulkAddCompaniesModal
+          existing={value}
+          onConfirm={(companies) => { onChange(companies); setShowModal(false) }}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </div>
   )
 }
@@ -373,8 +448,7 @@ export function ProfilePage() {
           value={form.target_roles ?? []}
           onChange={(v) => setForm((f) => ({ ...f, target_roles: v }))}
         />
-        <TagInput
-          label="Target Companies"
+        <CompanyTagInput
           value={form.target_companies ?? []}
           onChange={(v) => setForm((f) => ({ ...f, target_companies: v }))}
         />
