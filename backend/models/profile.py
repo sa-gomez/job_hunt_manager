@@ -29,3 +29,7 @@ class UserProfile(Base):
     target_companies: Mapped[list] = mapped_column(JSON, default=list)
     salary_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     salary_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    website_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    work_authorization: Mapped[str | None] = mapped_column(String(100), nullable=True)

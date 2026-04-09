@@ -15,6 +15,10 @@ class ProfileCreate(BaseModel):
     target_companies: list[str] = []
     salary_min: int | None = None
     salary_max: int | None = None
+    phone: str | None = None
+    linkedin_url: str | None = None
+    website_url: str | None = None
+    work_authorization: str | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -29,6 +33,10 @@ class ProfileUpdate(BaseModel):
     target_companies: list[str] | None = None
     salary_min: int | None = None
     salary_max: int | None = None
+    phone: str | None = None
+    linkedin_url: str | None = None
+    website_url: str | None = None
+    work_authorization: str | None = None
 
 
 class ProfileResponse(BaseModel):
@@ -46,5 +54,9 @@ class ProfileResponse(BaseModel):
     target_companies: list[str]
     salary_min: int | None
     salary_max: int | None
+    phone: str | None
+    linkedin_url: str | None
+    website_url: str | None
+    work_authorization: str | None
 
     model_config = {"from_attributes": True}

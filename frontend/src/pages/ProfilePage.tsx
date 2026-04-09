@@ -99,6 +99,10 @@ const EMPTY: ProfileCreate = {
   target_companies: [],
   salary_min: undefined,
   salary_max: undefined,
+  phone: '',
+  linkedin_url: '',
+  website_url: '',
+  work_authorization: '',
 }
 
 function TagInput({
@@ -509,6 +513,10 @@ export function ProfilePage() {
           target_companies: p.target_companies,
           salary_min: p.salary_min ?? undefined,
           salary_max: p.salary_max ?? undefined,
+          phone: p.phone ?? '',
+          linkedin_url: p.linkedin_url ?? '',
+          website_url: p.website_url ?? '',
+          work_authorization: p.work_authorization ?? '',
         })
       }
     })
@@ -564,6 +572,10 @@ export function ProfilePage() {
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         {field('Full Name', 'full_name')}
         {field('Email', 'email', 'email')}
+        {field('Phone', 'phone', 'tel')}
+        {field('LinkedIn URL', 'linkedin_url')}
+        {field('Website / Portfolio URL', 'website_url')}
+        {field('Work Authorization', 'work_authorization')}
         <LocationInput value={form.location ?? ''} onChange={v => setForm(f => ({ ...f, location: v }))} />
 
         <div className="flex items-center gap-3">

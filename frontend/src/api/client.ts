@@ -15,6 +15,10 @@ export interface Profile {
   target_companies: string[]
   salary_min: number | null
   salary_max: number | null
+  phone: string | null
+  linkedin_url: string | null
+  website_url: string | null
+  work_authorization: string | null
   created_at: string
   updated_at: string
 }
@@ -31,6 +35,10 @@ export interface ProfileCreate {
   target_companies?: string[]
   salary_min?: number
   salary_max?: number
+  phone?: string
+  linkedin_url?: string
+  website_url?: string
+  work_authorization?: string
 }
 
 export interface CredentialCreate {
