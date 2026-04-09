@@ -2,6 +2,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
+// Companies with known scraper slugs (Greenhouse + Lever)
+const KNOWN_COMPANIES = [
+  'Airbnb', 'Airtable', 'Anthropic', 'Asana', 'Brex', 'Carta', 'Checkr',
+  'Cloudflare', 'Coinbase', 'Confluent', 'Databricks', 'Discord', 'Elastic',
+  'Figma', 'GitHub', 'GitLab', 'Gusto', 'HashiCorp', 'HubSpot', 'Lattice',
+  'Lever', 'Linear', 'Loom', 'Mercury', 'Modal', 'MongoDB', 'Netflix',
+  'Notion', 'OpenAI', 'PagerDuty', 'Plaid', 'Replit', 'Retool', 'Rippling',
+  'Scale AI', 'Shopify', 'Snowflake', 'Squarespace', 'Stripe', 'Together',
+  'Twilio', 'Vercel', 'Zendesk',
+]
+
 const CITIES = [
   'Atlanta', 'Austin', 'Baltimore', 'Boston', 'Charlotte', 'Chicago',
   'Columbus', 'Dallas', 'Denver', 'Detroit', 'Houston', 'Indianapolis',
@@ -170,17 +181,71 @@ function CompanyTagInput({
   const [input, setInput] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   // null = measuring phase (all tags rendered so we can read their positions)
   // number = how many tags to display; rest replaced by "+N more" pill
   const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const add = () => {
-    const trimmed = input.trim()
+  const suggestions = input.trim().length >= 1
+    ? KNOWN_COMPANIES.filter(
+        c => c.toLowerCase().startsWith(input.trim().toLowerCase()) && !value.includes(c)
+      )
+    : []
+
+  useEffect(() => { setActiveIndex(-1) }, [input])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const add = (name?: string) => {
+    const trimmed = (name ?? input).trim()
     if (trimmed && !value.includes(trimmed)) {
       onChange([...value, trimmed])
     }
     setInput('')
+    setDropdownOpen(false)
+    setActiveIndex(-1)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && suggestions.length > 0) {
+      e.preventDefault()
+      const target = activeIndex >= 0 ? suggestions[activeIndex] : suggestions[0]
+      setInput(target)
+      setDropdownOpen(true)
+      return
+    }
+    if (e.key === 'ArrowDown' && dropdownOpen && suggestions.length > 0) {
+      e.preventDefault()
+      setActiveIndex(i => Math.min(i + 1, suggestions.length - 1))
+      return
+    }
+    if (e.key === 'ArrowUp' && dropdownOpen && suggestions.length > 0) {
+      e.preventDefault()
+      setActiveIndex(i => Math.max(i - 1, 0))
+      return
+    }
+    if (e.key === 'Escape') { setDropdownOpen(false); return }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (dropdownOpen && activeIndex >= 0) {
+        add(suggestions[activeIndex])
+      } else {
+        add()
+      }
+    }
   }
 
   // When value or expanded changes, reset to measuring phase so we re-measure.
@@ -276,21 +341,44 @@ function CompanyTagInput({
           </button>
         )}
       </div>
-      <div className="flex gap-2">
+      <div className="relative flex gap-2">
         <input
+          ref={inputRef}
           className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
+          onChange={(e) => { setInput(e.target.value); setDropdownOpen(true) }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => suggestions.length > 0 && setDropdownOpen(true)}
           placeholder="Add company and press Enter"
+          autoComplete="off"
         />
         <button
           type="button"
-          onClick={add}
+          onClick={() => add()}
           className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
         >
           Add
         </button>
+        {dropdownOpen && suggestions.length > 0 && (
+          <div
+            ref={dropdownRef}
+            className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md text-sm z-10 overflow-hidden"
+            style={{ maxHeight: '12rem', overflowY: 'auto' }}
+          >
+            {suggestions.map((company, i) => (
+              <div
+                key={company}
+                onMouseDown={() => add(company)}
+                className={`flex items-center justify-between px-3 py-2 cursor-pointer ${i === activeIndex ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-indigo-50 hover:text-indigo-700'}`}
+              >
+                <span>{company}</span>
+                {i === 0 && (
+                  <span className="text-xs text-gray-300 ml-2 shrink-0">Tab to complete</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {showModal && (
         <BulkAddCompaniesModal
