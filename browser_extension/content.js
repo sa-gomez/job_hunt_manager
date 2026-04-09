@@ -33,9 +33,9 @@ function extractJobInfo() {
   return null
 }
 
-// Set a form field value in a way that triggers React's synthetic events
+// Set a text/textarea field value in a way that triggers React's synthetic events
 function setField(selector, value) {
-  if (!value) return
+  if (value == null || value === '') return
   const el = typeof selector === 'string' ? document.querySelector(selector) : selector
   if (!el) return
   const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
@@ -49,51 +49,122 @@ function setField(selector, value) {
   el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-// Find an input by its associated label text (for custom questions)
-function setFieldByLabel(labelText, value) {
-  if (!value) return
-  for (const label of document.querySelectorAll('label')) {
-    if (label.textContent?.toLowerCase().includes(labelText.toLowerCase())) {
-      const forId = label.getAttribute('for')
-      const input = forId
-        ? document.getElementById(forId)
-        : label.querySelector('input, textarea')
-      if (input) { setField(input, value); return }
-    }
+// Set a <select> element by matching option text or value
+function setSelect(el, value) {
+  if (!el || value == null || value === '') return
+  const str = String(value)
+  const lower = str.toLowerCase()
+  const opts = Array.from(el.options)
+  const match =
+    opts.find(o => o.value.toLowerCase() === lower) ??
+    opts.find(o => o.text.toLowerCase().includes(lower)) ??
+    opts.find(o => lower.includes(o.text.toLowerCase().trim()) && o.text.trim() !== '')
+  if (match) {
+    el.value = match.value
+    el.dispatchEvent(new Event('change', { bubbles: true }))
   }
 }
 
-function fillGreenhouse(profile) {
-  const [first, ...rest] = (profile.full_name || '').split(' ')
-  const last = rest.join(' ')
-
-  // Standard Greenhouse field IDs
-  setField('#first_name', first)
-  setField('#last_name', last)
-  setField('#email', profile.email)
-  setField('#phone', profile.phone)
-  setField('#job_application_location', profile.location)
-
-  // Rails-style name attributes (some Greenhouse embeds)
-  setField('input[name="job_application[first_name]"]', first)
-  setField('input[name="job_application[last_name]"]', last)
-  setField('input[name="job_application[email]"]', profile.email)
-  setField('input[name="job_application[phone]"]', profile.phone)
-
-  // Custom questions searched by label
-  setFieldByLabel('linkedin', profile.linkedin_url)
-  setFieldByLabel('website', profile.website_url)
-  setFieldByLabel('portfolio', profile.website_url)
-  setFieldByLabel('work authorization', profile.work_authorization)
-  setFieldByLabel('authorized to work', profile.work_authorization)
+// Find the first input/textarea/select associated with a label whose text contains labelText
+function findByLabel(labelText) {
+  const lower = labelText.toLowerCase()
+  for (const label of document.querySelectorAll('label')) {
+    if (!label.textContent?.toLowerCase().includes(lower)) continue
+    const forId = label.getAttribute('for')
+    if (forId) {
+      const el = document.getElementById(forId)
+      if (el) return el
+    }
+    const el = label.querySelector('input, textarea, select')
+      ?? label.closest('div, li, fieldset')?.querySelector('input, textarea, select')
+    if (el) return el
+  }
+  return null
 }
 
-function fillLever(profile) {
-  setField('input[name="name"]', profile.full_name)
-  setField('input[name="email"]', profile.email)
-  setField('input[name="phone"]', profile.phone)
-  setField('input[name="urls[LinkedIn]"]', profile.linkedin_url)
-  setField('input[name="urls[Portfolio]"]', profile.website_url)
+// Set a field (input, textarea, or select) found by label text
+function setByLabel(labelText, value) {
+  if (value == null || value === '') return
+  const el = findByLabel(labelText)
+  if (!el) return
+  if (el.tagName === 'SELECT') setSelect(el, String(value))
+  else setField(el, String(value))
+}
+
+function boolToYesNo(val) {
+  if (val === true) return 'Yes'
+  if (val === false) return 'No'
+  return null
+}
+
+function fillGreenhouse(fd) {
+  // Standard Greenhouse field IDs
+  setField('#first_name', fd.first_name)
+  setField('#last_name', fd.last_name)
+  setField('#email', fd.email)
+  setField('#phone', fd.phone)
+  setField('#job_application_location', fd.location)
+
+  // Rails-style name attributes (some Greenhouse embeds)
+  setField('input[name="job_application[first_name]"]', fd.first_name)
+  setField('input[name="job_application[last_name]"]', fd.last_name)
+  setField('input[name="job_application[email]"]', fd.email)
+  setField('input[name="job_application[phone]"]', fd.phone)
+
+  // Standard fields by label
+  setByLabel('linkedin', fd.linkedin_url)
+  setByLabel('website', fd.website_url)
+  setByLabel('portfolio', fd.website_url)
+  setByLabel('work authorization', fd.work_authorization)
+  setByLabel('authorized to work', fd.work_authorization)
+  setByLabel('name pronunciation', fd.name_pronunciation)
+  setByLabel('start date', fd.start_date)
+  setByLabel('timeline', fd.timeline_notes)
+  setByLabel('work location', fd.location)
+  setByLabel('cover letter', fd.cover_letter_template)
+  setByLabel('additional information', fd.cover_letter_template)
+
+  // Visa / sponsorship (select dropdowns)
+  setByLabel('visa sponsorship', boolToYesNo(fd.requires_visa_sponsorship))
+  setByLabel('sponsorship required', boolToYesNo(fd.requires_visa_sponsorship))
+  setByLabel('future visa', boolToYesNo(fd.requires_future_visa_sponsorship))
+  setByLabel('future sponsorship', boolToYesNo(fd.requires_future_visa_sponsorship))
+
+  // Location / office
+  setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+  setByLabel('in-person', fd.office_availability)
+  setByLabel('office availability', fd.office_availability)
+  setByLabel('on-site', fd.office_availability)
+
+  // EEOC
+  setByLabel('gender', fd.eeoc_gender)
+  setByLabel('race', fd.eeoc_race)
+  setByLabel('ethnicity', fd.eeoc_race)
+  setByLabel('veteran', fd.eeoc_veteran_status)
+  setByLabel('disability', fd.eeoc_disability_status)
+
+  // Custom Q&A — match by label substring
+  for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
+    setByLabel(labelKey, answer)
+  }
+}
+
+function fillLever(fd) {
+  setField('input[name="name"]', fd.full_name)
+  setField('input[name="email"]', fd.email)
+  setField('input[name="phone"]', fd.phone)
+  setField('input[name="urls[LinkedIn]"]', fd.linkedin_url)
+  setField('input[name="urls[Portfolio]"]', fd.website_url)
+
+  setByLabel('name pronunciation', fd.name_pronunciation)
+  setByLabel('start date', fd.start_date)
+  setByLabel('timeline', fd.timeline_notes)
+  setByLabel('visa', boolToYesNo(fd.requires_visa_sponsorship))
+  setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+
+  for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
+    setByLabel(labelKey, answer)
+  }
 }
 
 // Intercept fetch to detect a successful form submission
@@ -119,8 +190,8 @@ window.fetch = async function (input, init) {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'FILL_FORM') {
-    if (PLATFORM === 'greenhouse') fillGreenhouse(msg.profile)
-    else if (PLATFORM === 'lever') fillLever(msg.profile)
+    if (PLATFORM === 'greenhouse') fillGreenhouse(msg.fillData)
+    else if (PLATFORM === 'lever') fillLever(msg.fillData)
     sendResponse({ ok: true, platform: PLATFORM })
   }
   if (msg.type === 'GET_JOB_INFO') {

@@ -1,7 +1,7 @@
 const API_BASE = 'http://localhost:8000/api'
 
-// Cache profile for the session to avoid repeated fetches
 let profileCache = null
+let fillDataCache = null
 
 async function getProfile() {
   if (profileCache) return profileCache
@@ -10,6 +10,16 @@ async function getProfile() {
   const profiles = await res.json()
   profileCache = profiles[0] ?? null
   return profileCache
+}
+
+async function getFillData() {
+  if (fillDataCache) return fillDataCache
+  const profile = await getProfile()
+  if (!profile) return null
+  const res = await fetch(`${API_BASE}/autofill/fill-data/${profile.id}`)
+  if (!res.ok) throw new Error(`API returned ${res.status}`)
+  fillDataCache = await res.json()
+  return fillDataCache
 }
 
 async function markApplied(jobInfo) {
@@ -29,7 +39,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     getProfile()
       .then(profile => sendResponse({ profile }))
       .catch(err => sendResponse({ error: err.message }))
-    return true // keep message channel open for async response
+    return true
+  }
+
+  if (msg.type === 'GET_FILL_DATA') {
+    getFillData()
+      .then(fillData => sendResponse({ fillData }))
+      .catch(err => sendResponse({ error: err.message }))
+    return true
   }
 
   if (msg.type === 'APPLICATION_SUBMITTED') {

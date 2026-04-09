@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { companiesApi, credentialsApi, profileApi, type CompanyInfo, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+import { applicationProfileApi, companiesApi, credentialsApi, profileApi, type ApplicationProfileUpsert, type CompanyInfo, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
 const CITIES = [
@@ -485,6 +485,274 @@ function CredentialsSection({ profileId }: { profileId: number }) {
   )
 }
 
+const EMPTY_APP_PROFILE: ApplicationProfileUpsert = {
+  resume_text: null,
+  cover_letter_template: null,
+  name_pronunciation: null,
+  start_date: null,
+  timeline_notes: null,
+  requires_visa_sponsorship: null,
+  requires_future_visa_sponsorship: null,
+  willing_to_relocate: null,
+  office_availability: null,
+  eeoc_gender: null,
+  eeoc_race: null,
+  eeoc_veteran_status: null,
+  eeoc_disability_status: null,
+  custom_answers: {},
+}
+
+type TriBool = 'true' | 'false' | ''
+
+function triBoolToVal(s: TriBool): boolean | null {
+  if (s === 'true') return true
+  if (s === 'false') return false
+  return null
+}
+
+function valToTriBool(v: boolean | null | undefined): TriBool {
+  if (v === true) return 'true'
+  if (v === false) return 'false'
+  return ''
+}
+
+function TriBoolSelect({ label, value, onChange }: { label: string; value: TriBool; onChange: (v: TriBool) => void }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <select
+        className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        value={value}
+        onChange={e => onChange(e.target.value as TriBool)}
+      >
+        <option value="">Not specified</option>
+        <option value="true">Yes</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  )
+}
+
+function CustomAnswersEditor({
+  value,
+  onChange,
+}: {
+  value: Record<string, string>
+  onChange: (v: Record<string, string>) => void
+}) {
+  const [pairs, setPairs] = useState<Array<{ key: string; val: string }>>(() =>
+    Object.entries(value).map(([key, val]) => ({ key, val }))
+  )
+
+  const sync = (next: Array<{ key: string; val: string }>) => {
+    setPairs(next)
+    const obj: Record<string, string> = {}
+    for (const { key, val } of next) {
+      if (key.trim()) obj[key.trim()] = val
+    }
+    onChange(obj)
+  }
+
+  const add = () => sync([...pairs, { key: '', val: '' }])
+
+  const update = (i: number, field: 'key' | 'val', v: string) => {
+    const next = pairs.map((p, idx) => (idx === i ? { ...p, [field]: v } : p))
+    sync(next)
+  }
+
+  const remove = (i: number) => sync(pairs.filter((_, idx) => idx !== i))
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Custom Q&amp;A
+          <span className="ml-1 text-xs text-gray-400 font-normal">(label substring → answer)</span>
+        </label>
+        <button
+          type="button"
+          onClick={add}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        >
+          + Add
+        </button>
+      </div>
+      {pairs.length === 0 && (
+        <p className="text-xs text-gray-400 mb-2">
+          No custom answers yet. Add entries to auto-fill job-specific questions by matching their label text.
+        </p>
+      )}
+      <div className="space-y-2">
+        {pairs.map((p, i) => (
+          <div key={i} className="flex gap-2 items-start">
+            <input
+              className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder='Label (e.g. "why anthropic")'
+              value={p.key}
+              onChange={e => update(i, 'key', e.target.value)}
+            />
+            <input
+              className="flex-[2] border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Answer"
+              value={p.val}
+              onChange={e => update(i, 'val', e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="text-gray-400 hover:text-red-500 text-lg leading-none px-1"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ApplicationProfileSection({ profileId }: { profileId: number }) {
+  const [form, setForm] = useState<ApplicationProfileUpsert>(EMPTY_APP_PROFILE)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    applicationProfileApi.get(profileId).then(ap => {
+      setForm({
+        resume_text: ap.resume_text,
+        cover_letter_template: ap.cover_letter_template,
+        name_pronunciation: ap.name_pronunciation,
+        start_date: ap.start_date,
+        timeline_notes: ap.timeline_notes,
+        requires_visa_sponsorship: ap.requires_visa_sponsorship,
+        requires_future_visa_sponsorship: ap.requires_future_visa_sponsorship,
+        willing_to_relocate: ap.willing_to_relocate,
+        office_availability: ap.office_availability,
+        eeoc_gender: ap.eeoc_gender,
+        eeoc_race: ap.eeoc_race,
+        eeoc_veteran_status: ap.eeoc_veteran_status,
+        eeoc_disability_status: ap.eeoc_disability_status,
+        custom_answers: ap.custom_answers,
+      })
+    }).catch(() => {
+      // 404 is fine — no app profile yet
+    }).finally(() => setLoaded(true))
+  }, [profileId])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await applicationProfileApi.upsert(profileId, form)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const textField = (label: string, key: keyof ApplicationProfileUpsert, rows = 1) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {rows > 1 ? (
+        <textarea
+          className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          rows={rows}
+          value={(form[key] as string) ?? ''}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))}
+        />
+      ) : (
+        <input
+          type="text"
+          className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          value={(form[key] as string) ?? ''}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value || null }))}
+        />
+      )}
+    </div>
+  )
+
+  if (!loaded) return null
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <h2 className="text-lg font-semibold text-gray-900">Application Autofill</h2>
+      <p className="text-xs text-gray-500 -mt-3">
+        Stored separately from your profile — used by the browser extension to populate job application forms.
+      </p>
+
+      {textField('Resume (plain text)', 'resume_text', 8)}
+      {textField('Cover Letter Template', 'cover_letter_template', 6)}
+
+      <div className="grid grid-cols-2 gap-4">
+        {textField('Name Pronunciation', 'name_pronunciation')}
+        {textField('Available Start Date', 'start_date')}
+      </div>
+
+      {textField('Timeline / Scheduling Notes', 'timeline_notes')}
+
+      <div className="border-t border-gray-100 pt-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-700">Work Authorization &amp; Location</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <TriBoolSelect
+            label="Requires Visa Sponsorship Now"
+            value={valToTriBool(form.requires_visa_sponsorship)}
+            onChange={v => setForm(f => ({ ...f, requires_visa_sponsorship: triBoolToVal(v) }))}
+          />
+          <TriBoolSelect
+            label="Will Require Sponsorship in Future"
+            value={valToTriBool(form.requires_future_visa_sponsorship)}
+            onChange={v => setForm(f => ({ ...f, requires_future_visa_sponsorship: triBoolToVal(v) }))}
+          />
+          <TriBoolSelect
+            label="Open to Relocation"
+            value={valToTriBool(form.willing_to_relocate)}
+            onChange={v => setForm(f => ({ ...f, willing_to_relocate: triBoolToVal(v) }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            In-Person / Office Availability Answer
+          </label>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder='e.g. "Yes" or "Already in SF Bay or Seattle area"'
+            value={form.office_availability ?? ''}
+            onChange={e => setForm(f => ({ ...f, office_availability: e.target.value || null }))}
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-gray-100 pt-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-700">EEOC Self-Identification (optional)</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {textField('Gender', 'eeoc_gender')}
+          {textField('Race / Ethnicity', 'eeoc_race')}
+          {textField('Veteran Status', 'eeoc_veteran_status')}
+          {textField('Disability Status', 'eeoc_disability_status')}
+        </div>
+      </div>
+
+      <div className="border-t border-gray-100 pt-4">
+        <CustomAnswersEditor
+          value={form.custom_answers}
+          onChange={v => setForm(f => ({ ...f, custom_answers: v }))}
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+      >
+        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Autofill Settings'}
+      </button>
+    </form>
+  )
+}
+
 export function ProfilePage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [form, setForm] = useState<ProfileCreate>(EMPTY)
@@ -629,6 +897,7 @@ export function ProfilePage() {
       </form>
 
       {current && <CredentialsSection profileId={current.id} />}
+      {current && <ApplicationProfileSection profileId={current.id} />}
     </div>
   )
 }

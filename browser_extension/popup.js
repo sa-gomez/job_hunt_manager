@@ -47,7 +47,12 @@ async function render() {
 
   document.getElementById('fill-btn').addEventListener('click', async () => {
     try {
-      const res = await chrome.tabs.sendMessage(tab.id, { type: 'FILL_FORM', profile })
+      const { fillData, error: fdError } = await chrome.runtime.sendMessage({ type: 'GET_FILL_DATA' })
+      if (fdError || !fillData) {
+        setStatus('Could not load fill data.', 'error')
+        return
+      }
+      const res = await chrome.tabs.sendMessage(tab.id, { type: 'FILL_FORM', fillData })
       if (res?.ok) {
         setStatus(`Filled ${res.platform} form`, 'success')
       } else {

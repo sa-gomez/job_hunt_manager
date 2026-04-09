@@ -8,6 +8,7 @@ from alembic import context
 
 from backend.config import settings
 from backend.database import Base
+import backend.models.application_profile  # noqa: F401
 import backend.models.credential  # noqa: F401
 import backend.models.job  # noqa: F401
 import backend.models.profile  # noqa: F401
