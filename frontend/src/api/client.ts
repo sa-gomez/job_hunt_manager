@@ -165,6 +165,32 @@ export const applicationProfileApi = {
     api.put<ApplicationProfile>(`/application-profile/${profileId}`, data).then(r => r.data),
 }
 
+export interface EmployerAnswerItem {
+  question_label: string
+  answer: string
+}
+
+export interface EmployerAnswerGroup {
+  employer_slug: string
+  answers: EmployerAnswerItem[]
+}
+
+export interface EmployerSlugSummary {
+  employer_slug: string
+  answer_count: number
+}
+
+export const employerAnswersApi = {
+  listSlugs: (profileId: number) =>
+    api.get<EmployerSlugSummary[]>(`/employer-answers/${profileId}`).then(r => r.data),
+  get: (profileId: number, slug: string) =>
+    api.get<EmployerAnswerGroup>(`/employer-answers/${profileId}/${slug}`).then(r => r.data),
+  upsert: (profileId: number, slug: string, answers: EmployerAnswerItem[]) =>
+    api.put<EmployerAnswerGroup>(`/employer-answers/${profileId}/${slug}`, answers).then(r => r.data),
+  delete: (profileId: number, slug: string) =>
+    api.delete(`/employer-answers/${profileId}/${slug}`),
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),

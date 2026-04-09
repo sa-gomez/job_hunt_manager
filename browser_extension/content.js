@@ -167,6 +167,79 @@ function fillLever(fd) {
   }
 }
 
+// Standard field IDs / name-prefixes that belong to the profile, not employer Q&A
+const STANDARD_IDS = new Set(['first_name', 'last_name', 'email', 'phone', 'job_application_location'])
+const STANDARD_NAME_PREFIXES = [
+  'job_application[first_name]', 'job_application[last_name]',
+  'job_application[email]', 'job_application[phone]',
+]
+
+// Read all non-standard labeled fields currently filled in the Greenhouse form
+function readGreenhouseAnswers() {
+  const answers = {}
+  for (const label of document.querySelectorAll('label')) {
+    const rawText = label.textContent?.trim()
+    if (!rawText) continue
+
+    const forId = label.getAttribute('for')
+    if (forId && STANDARD_IDS.has(forId)) continue
+
+    let el = forId
+      ? document.getElementById(forId)
+      : label.querySelector('input, textarea, select')
+        ?? label.closest('div, li')?.querySelector('input, textarea, select')
+    if (!el) continue
+
+    const name = el.getAttribute('name') ?? ''
+    if (STANDARD_NAME_PREFIXES.some(p => name.startsWith(p))) continue
+
+    let value = ''
+    if (el.tagName === 'SELECT') {
+      const opt = el.options[el.selectedIndex]
+      value = opt?.text?.trim() ?? ''
+      if (!value || value.toLowerCase().startsWith('select')) continue
+    } else {
+      value = el.value?.trim() ?? ''
+    }
+
+    if (value) {
+      // Normalize label: strip asterisks / required markers, collapse whitespace, lowercase
+      const key = rawText.replace(/\*/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+      if (key) answers[key] = value
+    }
+  }
+  return answers
+}
+
+function readLeverAnswers() {
+  const answers = {}
+  const SKIP_NAMES = new Set(['name', 'email', 'phone', 'urls[LinkedIn]', 'urls[Portfolio]'])
+  for (const label of document.querySelectorAll('label')) {
+    const rawText = label.textContent?.trim()
+    if (!rawText) continue
+    const forId = label.getAttribute('for')
+    let el = forId
+      ? document.getElementById(forId)
+      : label.querySelector('input, textarea, select')
+        ?? label.closest('div')?.querySelector('input, textarea, select')
+    if (!el) continue
+    if (SKIP_NAMES.has(el.getAttribute('name') ?? '')) continue
+    let value = ''
+    if (el.tagName === 'SELECT') {
+      const opt = el.options[el.selectedIndex]
+      value = opt?.text?.trim() ?? ''
+      if (!value || value.toLowerCase().startsWith('select')) continue
+    } else {
+      value = el.value?.trim() ?? ''
+    }
+    if (value) {
+      const key = rawText.replace(/\*/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+      if (key) answers[key] = value
+    }
+  }
+  return answers
+}
+
 // Intercept fetch to detect a successful form submission
 let submissionDetected = false
 const _fetch = window.fetch.bind(window)
@@ -196,5 +269,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg.type === 'GET_JOB_INFO') {
     sendResponse({ jobInfo: extractJobInfo(), platform: PLATFORM })
+  }
+  if (msg.type === 'READ_FORM_ANSWERS') {
+    let answers = {}
+    if (PLATFORM === 'greenhouse') answers = readGreenhouseAnswers()
+    else if (PLATFORM === 'lever') answers = readLeverAnswers()
+    sendResponse({ answers, platform: PLATFORM })
   }
 })

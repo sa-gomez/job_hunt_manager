@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
 from backend.models.application_profile import ApplicationProfile
+from backend.models.employer_answer import EmployerAnswer
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.models.scan import ScanResult
@@ -40,7 +41,11 @@ class FillData(BaseModel):
 
 
 @router.get("/fill-data/{profile_id}", response_model=FillData)
-async def get_fill_data(profile_id: int, db: AsyncSession = Depends(get_db)):
+async def get_fill_data(
+    profile_id: int,
+    employer_slug: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
     profile = await db.get(UserProfile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -50,6 +55,22 @@ async def get_fill_data(profile_id: int, db: AsyncSession = Depends(get_db)):
             select(ApplicationProfile).where(ApplicationProfile.profile_id == profile_id)
         )
     ).scalar_one_or_none()
+
+    # Employer-specific answers for this slug (overrides global custom_answers)
+    employer_answers: dict[str, str] = {}
+    if employer_slug:
+        ea_rows = (
+            await db.execute(
+                select(EmployerAnswer).where(
+                    EmployerAnswer.profile_id == profile_id,
+                    EmployerAnswer.employer_slug == employer_slug,
+                )
+            )
+        ).scalars().all()
+        employer_answers = {row.question_label: row.answer for row in ea_rows}
+
+    global_answers: dict[str, str] = ap.custom_answers if ap else {}
+    merged_answers = {**global_answers, **employer_answers}
 
     names = (profile.full_name or "").split(" ", 1)
     return FillData(
@@ -75,7 +96,7 @@ async def get_fill_data(profile_id: int, db: AsyncSession = Depends(get_db)):
         eeoc_race=ap.eeoc_race if ap else None,
         eeoc_veteran_status=ap.eeoc_veteran_status if ap else None,
         eeoc_disability_status=ap.eeoc_disability_status if ap else None,
-        custom_answers=ap.custom_answers if ap else {},
+        custom_answers=merged_answers,
     )
 
 

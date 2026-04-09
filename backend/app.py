@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import application_profile, autofill, credentials, jobs, profile, scan
+from backend.routers import application_profile, autofill, credentials, employer_answer, jobs, profile, scan
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ app.include_router(scan.router)
 app.include_router(jobs.router)
 app.include_router(autofill.router)
 app.include_router(application_profile.router)
+app.include_router(employer_answer.router)
 
 
 @app.get("/api/health")

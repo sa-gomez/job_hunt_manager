@@ -1,7 +1,7 @@
 const API_BASE = 'http://localhost:8000/api'
 
 let profileCache = null
-let fillDataCache = null
+const fillDataCache = {} // keyed by employerSlug ('' for no slug)
 
 async function getProfile() {
   if (profileCache) return profileCache
@@ -12,14 +12,31 @@ async function getProfile() {
   return profileCache
 }
 
-async function getFillData() {
-  if (fillDataCache) return fillDataCache
+async function getFillData(employerSlug) {
+  const key = employerSlug ?? ''
+  if (fillDataCache[key]) return fillDataCache[key]
   const profile = await getProfile()
   if (!profile) return null
-  const res = await fetch(`${API_BASE}/autofill/fill-data/${profile.id}`)
+  const params = employerSlug ? `?employer_slug=${encodeURIComponent(employerSlug)}` : ''
+  const res = await fetch(`${API_BASE}/autofill/fill-data/${profile.id}${params}`)
   if (!res.ok) throw new Error(`API returned ${res.status}`)
-  fillDataCache = await res.json()
-  return fillDataCache
+  fillDataCache[key] = await res.json()
+  return fillDataCache[key]
+}
+
+async function saveEmployerAnswers(slug, answers) {
+  const profile = await getProfile()
+  if (!profile) throw new Error('No profile found')
+  const pairs = Object.entries(answers).map(([question_label, answer]) => ({ question_label, answer }))
+  const res = await fetch(`${API_BASE}/employer-answers/${profile.id}/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pairs),
+  })
+  if (!res.ok) throw new Error(`API returned ${res.status}`)
+  // Invalidate cached fill data for this slug so next fill picks up new answers
+  delete fillDataCache[slug]
+  return res.json()
 }
 
 async function markApplied(jobInfo) {
@@ -43,14 +60,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'GET_FILL_DATA') {
-    getFillData()
+    getFillData(msg.employerSlug ?? null)
       .then(fillData => sendResponse({ fillData }))
       .catch(err => sendResponse({ error: err.message }))
     return true
   }
 
+  if (msg.type === 'SAVE_EMPLOYER_ANSWERS') {
+    saveEmployerAnswers(msg.slug, msg.answers)
+      .then(data => sendResponse({ ok: true, data }))
+      .catch(err => sendResponse({ error: err.message }))
+    return true
+  }
+
   if (msg.type === 'APPLICATION_SUBMITTED') {
-    // Fire and forget — content script detected a successful submission
     markApplied(msg.jobInfo).catch(err => console.error('Failed to mark applied:', err))
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { applicationProfileApi, companiesApi, credentialsApi, profileApi, type ApplicationProfileUpsert, type CompanyInfo, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+import { applicationProfileApi, companiesApi, credentialsApi, employerAnswersApi, profileApi, type ApplicationProfileUpsert, type CompanyInfo, type CredentialInfo, type EmployerAnswerItem, type EmployerSlugSummary, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
 const CITIES = [
@@ -485,6 +485,199 @@ function CredentialsSection({ profileId }: { profileId: number }) {
   )
 }
 
+function EmployerQAEditor({
+  answers,
+  onChange,
+}: {
+  answers: EmployerAnswerItem[]
+  onChange: (v: EmployerAnswerItem[]) => void
+}) {
+  const add = () => onChange([...answers, { question_label: '', answer: '' }])
+  const update = (i: number, field: keyof EmployerAnswerItem, v: string) =>
+    onChange(answers.map((a, idx) => (idx === i ? { ...a, [field]: v } : a)))
+  const remove = (i: number) => onChange(answers.filter((_, idx) => idx !== i))
+
+  return (
+    <div className="space-y-2">
+      {answers.length === 0 && (
+        <p className="text-xs text-gray-400">No answers yet. Add entries below.</p>
+      )}
+      {answers.map((a, i) => (
+        <div key={i} className="flex gap-2 items-start">
+          <input
+            className="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder='Question label (e.g. "have you built internal tools")'
+            value={a.question_label}
+            onChange={e => update(i, 'question_label', e.target.value)}
+          />
+          <input
+            className="flex-[2] border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Answer"
+            value={a.answer}
+            onChange={e => update(i, 'answer', e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="text-gray-400 hover:text-red-500 text-lg leading-none px-1 pt-1"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+      >
+        + Add answer
+      </button>
+    </div>
+  )
+}
+
+function EmployerAnswersSection({ profileId }: { profileId: number }) {
+  const [slugs, setSlugs] = useState<EmployerSlugSummary[]>([])
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
+  const [answers, setAnswers] = useState<EmployerAnswerItem[]>([])
+  const [newSlugInput, setNewSlugInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const loadSlugs = () =>
+    employerAnswersApi.listSlugs(profileId).then(setSlugs).catch(() => {})
+
+  useEffect(() => { loadSlugs() }, [profileId])
+
+  const selectSlug = async (slug: string) => {
+    setSelectedSlug(slug)
+    setSaved(false)
+    try {
+      const group = await employerAnswersApi.get(profileId, slug)
+      setAnswers(group.answers)
+    } catch {
+      setAnswers([])
+    }
+  }
+
+  const addNewSlug = () => {
+    const slug = newSlugInput.trim().toLowerCase()
+    if (!slug) return
+    setNewSlugInput('')
+    setSelectedSlug(slug)
+    setAnswers([])
+    setSaved(false)
+  }
+
+  const save = async () => {
+    if (!selectedSlug) return
+    setSaving(true)
+    try {
+      const group = await employerAnswersApi.upsert(profileId, selectedSlug, answers)
+      setAnswers(group.answers)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      await loadSlugs()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteSlug = async () => {
+    if (!selectedSlug) return
+    setDeleting(true)
+    try {
+      await employerAnswersApi.delete(profileId, selectedSlug)
+      setSelectedSlug(null)
+      setAnswers([])
+      await loadSlugs()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Employer-Specific Q&amp;A</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Answers stored per company slug (e.g. <code className="bg-gray-100 px-1 rounded">anthropic</code>).
+          The extension auto-fills these when you open that employer's job form, and saves new answers when you click "Save Answers" in the popup.
+        </p>
+      </div>
+
+      {/* Slug pills */}
+      {slugs.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {slugs.map(s => (
+            <button
+              key={s.employer_slug}
+              type="button"
+              onClick={() => selectSlug(s.employer_slug)}
+              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                selectedSlug === s.employer_slug
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-gray-50 text-gray-700 border-gray-300 hover:border-indigo-400 hover:text-indigo-700'
+              }`}
+            >
+              {s.employer_slug}
+              <span className="ml-1.5 opacity-60 text-xs">{s.answer_count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Add new slug */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Add employer slug (e.g. anthropic)"
+          value={newSlugInput}
+          onChange={e => setNewSlugInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addNewSlug())}
+        />
+        <button
+          type="button"
+          onClick={addNewSlug}
+          className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+        >
+          Open
+        </button>
+      </div>
+
+      {/* Q&A editor for selected slug */}
+      {selectedSlug && (
+        <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">{selectedSlug}</h3>
+            <button
+              type="button"
+              onClick={deleteSlug}
+              disabled={deleting}
+              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Delete all'}
+            </button>
+          </div>
+
+          <EmployerQAEditor answers={answers} onChange={setAnswers} />
+
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="w-full py-1.5 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Saving…' : saved ? '✓ Saved' : `Save answers for ${selectedSlug}`}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const EMPTY_APP_PROFILE: ApplicationProfileUpsert = {
   resume_text: null,
   cover_letter_template: null,
@@ -897,6 +1090,7 @@ export function ProfilePage() {
       </form>
 
       {current && <CredentialsSection profileId={current.id} />}
+      {current && <EmployerAnswersSection profileId={current.id} />}
       {current && <ApplicationProfileSection profileId={current.id} />}
     </div>
   )

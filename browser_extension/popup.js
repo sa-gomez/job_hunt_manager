@@ -6,6 +6,10 @@ function isSupported(url) {
   )
 }
 
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 async function getCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   return tab
@@ -31,9 +35,20 @@ async function render() {
     return
   }
 
+  // Get job info to know the employer slug (best-effort — content script may not be ready yet)
+  let jobInfo = null
+  try {
+    const result = await chrome.tabs.sendMessage(tab.id, { type: 'GET_JOB_INFO' })
+    jobInfo = result?.jobInfo ?? null
+  } catch {}
+
+  const slug = jobInfo?.company ?? null
+
   root.innerHTML = `
-    <p class="profile-name">Profile: <strong>${profile.full_name}</strong></p>
+    <p class="profile-name">Profile: <strong>${escHtml(profile.full_name)}</strong></p>
+    ${slug ? `<p class="profile-name">Employer: <strong>${escHtml(slug)}</strong></p>` : ''}
     <button class="primary" id="fill-btn">Fill Form</button>
+    ${slug ? `<button class="secondary" id="save-btn">Save Answers for ${escHtml(slug)}</button>` : ''}
     <button class="secondary" id="applied-btn">Mark as Applied</button>
     <p class="status" id="status"></p>
   `
@@ -47,7 +62,8 @@ async function render() {
 
   document.getElementById('fill-btn').addEventListener('click', async () => {
     try {
-      const { fillData, error: fdError } = await chrome.runtime.sendMessage({ type: 'GET_FILL_DATA' })
+      const response = await chrome.runtime.sendMessage({ type: 'GET_FILL_DATA', employerSlug: slug })
+      const { fillData, error: fdError } = response ?? {}
       if (fdError || !fillData) {
         setStatus('Could not load fill data.', 'error')
         return
@@ -63,18 +79,44 @@ async function render() {
     }
   })
 
+  if (slug) {
+    document.getElementById('save-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('save-btn')
+      btn.disabled = true
+      setStatus('Reading form…')
+      try {
+        const { answers } = await chrome.tabs.sendMessage(tab.id, { type: 'READ_FORM_ANSWERS' })
+        if (!answers || Object.keys(answers).length === 0) {
+          setStatus('No filled answers found to save.', 'error')
+          btn.disabled = false
+          return
+        }
+        const res = await chrome.runtime.sendMessage({ type: 'SAVE_EMPLOYER_ANSWERS', slug, answers })
+        if (res?.ok) {
+          const count = Object.keys(answers).length
+          setStatus(`Saved ${count} answer${count !== 1 ? 's' : ''} for ${slug}`, 'success')
+        } else {
+          setStatus(res?.error || 'Failed to save.', 'error')
+        }
+      } catch (err) {
+        setStatus(err.message || 'Something went wrong.', 'error')
+      }
+      btn.disabled = false
+    })
+  }
+
   document.getElementById('applied-btn').addEventListener('click', async () => {
     const btn = document.getElementById('applied-btn')
     btn.disabled = true
     setStatus('Saving…')
     try {
-      const { jobInfo } = await chrome.tabs.sendMessage(tab.id, { type: 'GET_JOB_INFO' })
-      if (!jobInfo) {
+      const { jobInfo: ji } = await chrome.tabs.sendMessage(tab.id, { type: 'GET_JOB_INFO' })
+      if (!ji) {
         setStatus('Could not read job info from page.', 'error')
         btn.disabled = false
         return
       }
-      const res = await chrome.runtime.sendMessage({ type: 'MARK_APPLIED_MANUAL', jobInfo })
+      const res = await chrome.runtime.sendMessage({ type: 'MARK_APPLIED_MANUAL', jobInfo: ji })
       if (res?.ok) {
         setStatus('Marked as applied!', 'success')
       } else {
