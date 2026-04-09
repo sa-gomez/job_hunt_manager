@@ -137,7 +137,17 @@ export function MatchesPage() {
   const [resultPage, setResultPage] = useState<ScanResultPage | null>(null)
   const [page, setPage] = useState(1)
   const [scanning, setScanning] = useState(false)
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(ALL_SOURCES.map(s => s.id)))
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('scan_sources')
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[]
+        const valid = parsed.filter(id => ALL_SOURCES.some(s => s.id === id))
+        if (valid.length > 0) return new Set(valid)
+      }
+    } catch {}
+    return new Set(ALL_SOURCES.map(s => s.id))
+  })
   const [optionsOpen, setOptionsOpen] = useState(false)
   const optionsRef = useRef<HTMLDivElement | null>(null)
   const [scanStatus, setScanStatus] = useState<string | null>(null)
@@ -296,6 +306,7 @@ export function MatchesPage() {
                         setSelectedSources(prev => {
                           const next = new Set(prev)
                           next.has(id) ? next.delete(id) : next.add(id)
+                          localStorage.setItem('scan_sources', JSON.stringify([...next]))
                           return next
                         })
                       }}
