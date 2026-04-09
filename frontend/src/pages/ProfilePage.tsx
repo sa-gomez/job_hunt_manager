@@ -170,7 +170,9 @@ function CompanyTagInput({
   const [input, setInput] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const [hiddenCount, setHiddenCount] = useState(0)
+  // null = measuring phase (all tags rendered so we can read their positions)
+  // number = how many tags to display; rest replaced by "+N more" pill
+  const [visibleCount, setVisibleCount] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const add = () => {
@@ -181,33 +183,50 @@ function CompanyTagInput({
     setInput('')
   }
 
-  // Measure how many tags overflow the 2-row window so we can show "+N more".
-  // Uses overflow:hidden on the container; the pill is absolutely positioned so
-  // it always appears within those 2 visual lines.
+  // When value or expanded changes, reset to measuring phase so we re-measure.
   useLayoutEffect(() => {
-    if (expanded) { setHiddenCount(0); return }
-    const container = containerRef.current
-    if (!container || value.length === 0) { setHiddenCount(0); return }
+    if (!expanded) setVisibleCount(null)
+  }, [value, expanded])
 
-    const measure = () => {
-      const tags = Array.from(container.querySelectorAll('[data-tag]')) as HTMLElement[]
-      if (tags.length === 0) return
-      const firstTop = tags[0].offsetTop
-      const rowH = tags[0].offsetHeight
-      // Anything with offsetTop beyond row 2 is hidden by overflow:hidden
-      const twoRowMaxTop = firstTop + rowH + 8 + 4 // rowH + gap(8px) + 4px tolerance
-      let hidden = 0
-      for (const tag of tags) {
-        if (tag.offsetTop > twoRowMaxTop) hidden++
-      }
-      setHiddenCount(hidden)
+  // Measure tag positions (only runs in measuring phase).
+  // Both this and the reset above run before the browser paints, so the
+  // "all tags" measuring render is never visible to the user.
+  useLayoutEffect(() => {
+    if (expanded || visibleCount !== null) return
+    const container = containerRef.current
+    if (!container || value.length === 0) { setVisibleCount(0); return }
+
+    const tags = Array.from(container.querySelectorAll('[data-tag]')) as HTMLElement[]
+    if (tags.length === 0) { setVisibleCount(0); return }
+
+    const firstTop = tags[0].offsetTop
+    const rowH = tags[0].offsetHeight
+    const maxTop = firstTop + rowH + 8 + 4 // row height + gap (8px) + tolerance
+
+    let fits = 0
+    for (const tag of tags) {
+      if (tag.offsetTop <= maxTop) fits++
+      else break
     }
 
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(container)
+    // All fit — show everything with no pill.
+    // Overflow — drop the last row-2 tag so the pill lands cleanly in its place.
+    setVisibleCount(fits >= value.length ? value.length : Math.max(0, fits - 1))
+  }, [visibleCount, value, expanded])
+
+  // Re-measure when the container is resized (e.g. window resize).
+  useLayoutEffect(() => {
+    if (expanded || !containerRef.current) return
+    const ro = new ResizeObserver(() => setVisibleCount(null))
+    ro.observe(containerRef.current)
     return () => ro.disconnect()
-  }, [value, expanded])
+  }, [expanded])
+
+  const isMeasuring = !expanded && visibleCount === null
+  const shown = expanded || isMeasuring ? value : value.slice(0, visibleCount!)
+  const hiddenCount = !expanded && visibleCount !== null && visibleCount < value.length
+    ? value.length - visibleCount
+    : 0
 
   return (
     <div>
@@ -221,12 +240,8 @@ function CompanyTagInput({
           + Bulk Add
         </button>
       </div>
-      {/* Tag list: clipped to 2 rows when collapsed */}
-      <div
-        ref={containerRef}
-        className={`relative flex flex-wrap gap-2 mb-2${!expanded ? ' overflow-hidden max-h-[64px]' : ''}`}
-      >
-        {value.map((tag) => (
+      <div ref={containerRef} className="flex flex-wrap gap-2 mb-2">
+        {shown.map((tag) => (
           <span
             key={tag}
             data-tag=""
@@ -242,6 +257,15 @@ function CompanyTagInput({
             </button>
           </span>
         ))}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 text-sm hover:border-indigo-400 hover:text-indigo-700"
+          >
+            +{hiddenCount} more
+          </button>
+        )}
         {expanded && value.length > 0 && (
           <button
             type="button"
@@ -250,19 +274,6 @@ function CompanyTagInput({
           >
             Show less
           </button>
-        )}
-        {/* Gradient fade + pill, absolutely pinned to bottom-right within the 2-row clip */}
-        {!expanded && hiddenCount > 0 && (
-          <>
-            <div className="absolute bottom-0 right-0 w-28 h-7 bg-gradient-to-r from-white/0 to-white pointer-events-none" />
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              className="absolute bottom-0 right-0 px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 text-sm bg-white hover:border-indigo-400 hover:text-indigo-700"
-            >
-              +{hiddenCount} more
-            </button>
-          </>
         )}
       </div>
       <div className="flex gap-2">
