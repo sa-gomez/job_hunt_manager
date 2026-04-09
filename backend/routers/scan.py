@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
 from backend.schemas.scan import ScanRequest, ScanResponse
-from backend.services.scan_orchestrator import get_scan_state, run_scan
+from backend.services.scan_orchestrator import cancel_scan, get_scan_state, run_scan
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 
@@ -31,3 +31,10 @@ async def get_scan_status(scan_id: str):
     if state is None:
         raise HTTPException(status_code=404, detail="Scan not found")
     return {"scan_id": scan_id, **state}
+
+
+@router.delete("/{scan_id}", status_code=204)
+async def cancel_scan_endpoint(scan_id: str):
+    if not cancel_scan(scan_id):
+        raise HTTPException(status_code=404, detail="Scan not found")
+

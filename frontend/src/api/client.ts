@@ -106,6 +106,8 @@ export const scanApi = {
     api.post<ScanResponse>('/scan', { profile_id: profileId, sources: sources ?? null }).then(r => r.data),
   status: (scanId: string) =>
     api.get<{ scan_id: string; status: string; message?: string; error?: string; jobs_found?: number }>(`/scan/${scanId}`).then(r => r.data),
+  cancel: (scanId: string) =>
+    api.delete(`/scan/${scanId}`),
 }
 
 export interface ScanResultPage {

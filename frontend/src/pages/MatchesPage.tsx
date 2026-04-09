@@ -137,6 +137,7 @@ export function MatchesPage() {
   const [resultPage, setResultPage] = useState<ScanResultPage | null>(null)
   const [page, setPage] = useState(1)
   const [scanning, setScanning] = useState(false)
+  const [activeScanId, setActiveScanId] = useState<string | null>(null)
   const [selectedSources, setSelectedSources] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem('scan_sources')
@@ -221,11 +222,13 @@ export function MatchesPage() {
     try {
       const sources = selectedSources.size === ALL_SOURCES.length ? undefined : [...selectedSources]
       const { scan_id } = await scanApi.trigger(currentProfile.id, sources)
+      setActiveScanId(scan_id)
       pollRef.current = setInterval(async () => {
         const state = await scanApi.status(scan_id)
         if (state.message) appendLog(state.message)
-        if (state.status === 'complete') {
+        if (state.status === 'complete' || state.status === 'cancelled') {
           clearInterval(pollRef.current!)
+          setActiveScanId(null)
           setScanStatus(state.message ?? `Done — ${state.jobs_found ?? 0} jobs found`)
           setScanning(false)
           setLogExpanded(false)
@@ -233,6 +236,7 @@ export function MatchesPage() {
           await loadResults(currentProfile.id, 1)
         } else if (state.status === 'error') {
           clearInterval(pollRef.current!)
+          setActiveScanId(null)
           const errMsg = state.error ?? 'Scan failed. Check the server logs.'
           appendLog(errMsg)
           setScanStatus(errMsg)
@@ -274,6 +278,14 @@ export function MatchesPage() {
         </div>
         <div className="flex items-center gap-3">
           {scanStatus && <span className="text-sm text-gray-500">{scanStatus}</span>}
+          {scanning && activeScanId && (
+            <button
+              onClick={() => { scanApi.cancel(activeScanId); appendLog('Stopping scan…') }}
+              className="px-3 py-2 border border-red-300 text-red-600 rounded-md text-sm font-medium hover:bg-red-50 transition-colors"
+            >
+              Stop
+            </button>
+          )}
           {/* Split button: Run Scan + options chevron */}
           <div ref={optionsRef} className="relative flex">
             <button

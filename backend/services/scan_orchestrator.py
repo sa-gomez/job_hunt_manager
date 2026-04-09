@@ -26,6 +26,18 @@ def get_scan_state(scan_id: str) -> dict | None:
     return _scan_state.get(scan_id)
 
 
+def cancel_scan(scan_id: str) -> bool:
+    """Request cancellation of a running scan. Returns False if scan not found."""
+    if scan_id not in _scan_state:
+        return False
+    _scan_state[scan_id]["cancel_requested"] = True
+    return True
+
+
+def _is_cancelled(scan_id: str) -> bool:
+    return _scan_state.get(scan_id, {}).get("cancel_requested", False)
+
+
 async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: list[str] | None = None) -> None:
     _scan_state[scan_id] = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat()}
     try:
@@ -66,6 +78,9 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
         all_jobs: list[JobPosting] = []
         scraper_labels = {"greenhouse": "Greenhouse", "lever": "Lever", "google_jobs": "Google Jobs", "linkedin": "LinkedIn"}
         for name, scraper, creds in scrapers:
+            if _is_cancelled(scan_id):
+                logger.info("Scan %s cancelled before scraping %s", scan_id, name)
+                break
             label = scraper_labels.get(name, name)
             _scan_state[scan_id]["message"] = f"Scraping {label}…"
             try:
@@ -132,8 +147,9 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
 
         await db.commit()
 
-        _scan_state[scan_id]["status"] = "complete"
-        _scan_state[scan_id]["message"] = f"Done — {len(persisted_jobs)} jobs found"
+        cancelled = _is_cancelled(scan_id)
+        _scan_state[scan_id]["status"] = "cancelled" if cancelled else "complete"
+        _scan_state[scan_id]["message"] = f"Cancelled — {len(persisted_jobs)} jobs saved" if cancelled else f"Done — {len(persisted_jobs)} jobs found"
         _scan_state[scan_id]["jobs_found"] = len(persisted_jobs)
         _scan_state[scan_id]["results_created"] = len(scan_results)
 
