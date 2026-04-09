@@ -33,27 +33,25 @@ function extractJobInfo() {
   return null
 }
 
-// Set a text/textarea field value in a way that triggers React's synthetic events
+// ---------------------------------------------------------------------------
+// Native input / select helpers
+// ---------------------------------------------------------------------------
+
 function setField(selector, value) {
   if (value == null || value === '') return
   const el = typeof selector === 'string' ? document.querySelector(selector) : selector
   if (!el) return
   const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
   const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
-  if (nativeSetter) {
-    nativeSetter.call(el, value)
-  } else {
-    el.value = value
-  }
+  if (nativeSetter) nativeSetter.call(el, value)
+  else el.value = value
   el.dispatchEvent(new Event('input', { bubbles: true }))
   el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-// Set a <select> element by matching option text or value
-function setSelect(el, value) {
+function setNativeSelect(el, value) {
   if (!el || value == null || value === '') return
-  const str = String(value)
-  const lower = str.toLowerCase()
+  const lower = String(value).toLowerCase()
   const opts = Array.from(el.options)
   const match =
     opts.find(o => o.value.toLowerCase() === lower) ??
@@ -65,7 +63,68 @@ function setSelect(el, value) {
   }
 }
 
-// Find the first input/textarea/select associated with a label whose text contains labelText
+// ---------------------------------------------------------------------------
+// React-select helpers (the new Greenhouse job-boards SPA uses these)
+// ---------------------------------------------------------------------------
+
+// Walk up from el to find a react-select container (class ending in "-container")
+function getReactSelectContainer(el) {
+  if (!el) return null
+  let node = el.parentElement
+  while (node && node !== document.body) {
+    const cls = typeof node.className === 'string' ? node.className : ''
+    if (cls.split(' ').some(c => c.endsWith('-container'))) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+function isInsideReactSelect(el) {
+  return getReactSelectContainer(el) !== null
+}
+
+// Click a react-select control open, wait for the menu, then click the matching option.
+async function clickReactSelectOption(container, value) {
+  if (!container || value == null || value === '') return
+  const lower = String(value).toLowerCase()
+
+  // The control is the first direct child div with "-control" in its class
+  const control = Array.from(container.children).find(
+    el => typeof el.className === 'string' && el.className.includes('-control')
+  ) ?? container
+
+  // Open the dropdown
+  control.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))
+  control.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+
+  await new Promise(r => setTimeout(r, 250))
+
+  // React-select renders options with role="option" in a portal attached to document body
+  const allOptions = [...document.querySelectorAll('[role="option"]')]
+
+  // Prefer exact text match, fall back to contains
+  const match =
+    allOptions.find(o => o.textContent?.trim().toLowerCase() === lower) ??
+    allOptions.find(o => o.textContent?.trim().toLowerCase().includes(lower)) ??
+    allOptions.find(o => lower.includes(o.textContent?.trim().toLowerCase() ?? ''))
+
+  if (match) {
+    match.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    match.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    match.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  } else {
+    // Close the dropdown without a selection
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  }
+
+  // Small gap before the next dropdown interaction
+  await new Promise(r => setTimeout(r, 100))
+}
+
+// ---------------------------------------------------------------------------
+// Unified label-based setter (async — handles both native and react-select)
+// ---------------------------------------------------------------------------
+
 function findByLabel(labelText) {
   const lower = labelText.toLowerCase()
   for (const label of document.querySelectorAll('label')) {
@@ -75,20 +134,31 @@ function findByLabel(labelText) {
       const el = document.getElementById(forId)
       if (el) return el
     }
-    const el = label.querySelector('input, textarea, select')
-      ?? label.closest('div, li, fieldset')?.querySelector('input, textarea, select')
+    const el =
+      label.querySelector('input, textarea, select') ??
+      label.closest('div, li, fieldset')?.querySelector('input, textarea, select')
     if (el) return el
   }
   return null
 }
 
-// Set a field (input, textarea, or select) found by label text
-function setByLabel(labelText, value) {
+async function setByLabel(labelText, value) {
   if (value == null || value === '') return
   const el = findByLabel(labelText)
   if (!el) return
-  if (el.tagName === 'SELECT') setSelect(el, String(value))
-  else setField(el, String(value))
+
+  if (el.tagName === 'SELECT') {
+    setNativeSelect(el, String(value))
+    return
+  }
+
+  const reactContainer = getReactSelectContainer(el)
+  if (reactContainer) {
+    await clickReactSelectOption(reactContainer, String(value))
+    return
+  }
+
+  setField(el, String(value))
 }
 
 function boolToYesNo(val) {
@@ -97,84 +167,92 @@ function boolToYesNo(val) {
   return null
 }
 
-function fillGreenhouse(fd) {
-  // Standard Greenhouse field IDs
+// ---------------------------------------------------------------------------
+// Platform fill functions
+// ---------------------------------------------------------------------------
+
+async function fillGreenhouse(fd) {
+  // Standard fields by selector (sync — native inputs)
   setField('#first_name', fd.first_name)
   setField('#last_name', fd.last_name)
   setField('#email', fd.email)
   setField('#phone', fd.phone)
   setField('#job_application_location', fd.location)
 
-  // Rails-style name attributes (some Greenhouse embeds)
+  // Rails-style name attributes (classic boards.greenhouse.io embeds)
   setField('input[name="job_application[first_name]"]', fd.first_name)
   setField('input[name="job_application[last_name]"]', fd.last_name)
   setField('input[name="job_application[email]"]', fd.email)
   setField('input[name="job_application[phone]"]', fd.phone)
 
-  // Standard fields by label
-  setByLabel('linkedin', fd.linkedin_url)
-  setByLabel('website', fd.website_url)
-  setByLabel('portfolio', fd.website_url)
-  setByLabel('work authorization', fd.work_authorization)
-  setByLabel('authorized to work', fd.work_authorization)
-  setByLabel('name pronunciation', fd.name_pronunciation)
-  setByLabel('start date', fd.start_date)
-  setByLabel('timeline', fd.timeline_notes)
-  setByLabel('work location', fd.location)
-  setByLabel('cover letter', fd.cover_letter_template)
-  setByLabel('additional information', fd.cover_letter_template)
+  // Text / textarea fields by label (may be native inputs)
+  await setByLabel('linkedin', fd.linkedin_url)
+  await setByLabel('website', fd.website_url)
+  await setByLabel('portfolio', fd.website_url)
+  await setByLabel('work authorization', fd.work_authorization)
+  await setByLabel('authorized to work', fd.work_authorization)
+  await setByLabel('name pronunciation', fd.name_pronunciation)
+  await setByLabel('start date', fd.start_date)
+  await setByLabel('timeline', fd.timeline_notes)
+  await setByLabel('work location', fd.location)
+  await setByLabel('cover letter', fd.cover_letter_template)
+  await setByLabel('additional information', fd.cover_letter_template)
 
-  // Visa / sponsorship (select dropdowns)
-  setByLabel('visa sponsorship', boolToYesNo(fd.requires_visa_sponsorship))
-  setByLabel('sponsorship required', boolToYesNo(fd.requires_visa_sponsorship))
-  setByLabel('future visa', boolToYesNo(fd.requires_future_visa_sponsorship))
-  setByLabel('future sponsorship', boolToYesNo(fd.requires_future_visa_sponsorship))
+  // Dropdowns (likely react-select on new Greenhouse job-boards)
+  await setByLabel('country', fd.country)
+  await setByLabel('visa sponsorship', boolToYesNo(fd.requires_visa_sponsorship))
+  await setByLabel('sponsorship required', boolToYesNo(fd.requires_visa_sponsorship))
+  await setByLabel('future visa', boolToYesNo(fd.requires_future_visa_sponsorship))
+  await setByLabel('future sponsorship', boolToYesNo(fd.requires_future_visa_sponsorship))
+  await setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+  await setByLabel('in-person', fd.office_availability)
+  await setByLabel('office availability', fd.office_availability)
+  await setByLabel('on-site', fd.office_availability)
 
-  // Location / office
-  setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
-  setByLabel('in-person', fd.office_availability)
-  setByLabel('office availability', fd.office_availability)
-  setByLabel('on-site', fd.office_availability)
+  // EEOC (Hispanic/Latino is a separate ethnicity Yes/No, not a race option)
+  await setByLabel('hispanic', fd.eeoc_ethnicity)
+  await setByLabel('latino', fd.eeoc_ethnicity)
+  await setByLabel('gender', fd.eeoc_gender)
+  await setByLabel('race', fd.eeoc_race)
+  await setByLabel('ethnicity', fd.eeoc_race)
+  await setByLabel('veteran', fd.eeoc_veteran_status)
+  await setByLabel('disability', fd.eeoc_disability_status)
 
-  // EEOC
-  setByLabel('gender', fd.eeoc_gender)
-  setByLabel('race', fd.eeoc_race)
-  setByLabel('ethnicity', fd.eeoc_race)
-  setByLabel('veteran', fd.eeoc_veteran_status)
-  setByLabel('disability', fd.eeoc_disability_status)
-
-  // Custom Q&A — match by label substring
+  // Custom Q&A — employer-specific answers matched by label substring
   for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
-    setByLabel(labelKey, answer)
+    await setByLabel(labelKey, answer)
   }
 }
 
-function fillLever(fd) {
+async function fillLever(fd) {
   setField('input[name="name"]', fd.full_name)
   setField('input[name="email"]', fd.email)
   setField('input[name="phone"]', fd.phone)
   setField('input[name="urls[LinkedIn]"]', fd.linkedin_url)
   setField('input[name="urls[Portfolio]"]', fd.website_url)
 
-  setByLabel('name pronunciation', fd.name_pronunciation)
-  setByLabel('start date', fd.start_date)
-  setByLabel('timeline', fd.timeline_notes)
-  setByLabel('visa', boolToYesNo(fd.requires_visa_sponsorship))
-  setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+  await setByLabel('name pronunciation', fd.name_pronunciation)
+  await setByLabel('start date', fd.start_date)
+  await setByLabel('timeline', fd.timeline_notes)
+  await setByLabel('visa', boolToYesNo(fd.requires_visa_sponsorship))
+  await setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+  await setByLabel('country', fd.country)
 
   for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
-    setByLabel(labelKey, answer)
+    await setByLabel(labelKey, answer)
   }
 }
 
-// Standard field IDs / name-prefixes that belong to the profile, not employer Q&A
+// ---------------------------------------------------------------------------
+// Form answer reader (for "Save Answers" popup button)
+// ---------------------------------------------------------------------------
+
 const STANDARD_IDS = new Set(['first_name', 'last_name', 'email', 'phone', 'job_application_location'])
 const STANDARD_NAME_PREFIXES = [
   'job_application[first_name]', 'job_application[last_name]',
   'job_application[email]', 'job_application[phone]',
 ]
 
-// Read all non-standard labeled fields currently filled in the Greenhouse form
 function readGreenhouseAnswers() {
   const answers = {}
   for (const label of document.querySelectorAll('label')) {
@@ -186,8 +264,8 @@ function readGreenhouseAnswers() {
 
     let el = forId
       ? document.getElementById(forId)
-      : label.querySelector('input, textarea, select')
-        ?? label.closest('div, li')?.querySelector('input, textarea, select')
+      : label.querySelector('input, textarea, select') ??
+        label.closest('div, li')?.querySelector('input, textarea, select')
     if (!el) continue
 
     const name = el.getAttribute('name') ?? ''
@@ -198,12 +276,16 @@ function readGreenhouseAnswers() {
       const opt = el.options[el.selectedIndex]
       value = opt?.text?.trim() ?? ''
       if (!value || value.toLowerCase().startsWith('select')) continue
+    } else if (isInsideReactSelect(el)) {
+      // Read the currently displayed value from the react-select container
+      const container = getReactSelectContainer(el)
+      const singleValue = container?.querySelector('[class*="-singleValue"]')
+      value = singleValue?.textContent?.trim() ?? ''
     } else {
       value = el.value?.trim() ?? ''
     }
 
     if (value) {
-      // Normalize label: strip asterisks / required markers, collapse whitespace, lowercase
       const key = rawText.replace(/\*/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
       if (key) answers[key] = value
     }
@@ -220,8 +302,8 @@ function readLeverAnswers() {
     const forId = label.getAttribute('for')
     let el = forId
       ? document.getElementById(forId)
-      : label.querySelector('input, textarea, select')
-        ?? label.closest('div')?.querySelector('input, textarea, select')
+      : label.querySelector('input, textarea, select') ??
+        label.closest('div')?.querySelector('input, textarea, select')
     if (!el) continue
     if (SKIP_NAMES.has(el.getAttribute('name') ?? '')) continue
     let value = ''
@@ -229,6 +311,10 @@ function readLeverAnswers() {
       const opt = el.options[el.selectedIndex]
       value = opt?.text?.trim() ?? ''
       if (!value || value.toLowerCase().startsWith('select')) continue
+    } else if (isInsideReactSelect(el)) {
+      const container = getReactSelectContainer(el)
+      const singleValue = container?.querySelector('[class*="-singleValue"]')
+      value = singleValue?.textContent?.trim() ?? ''
     } else {
       value = el.value?.trim() ?? ''
     }
@@ -240,7 +326,10 @@ function readLeverAnswers() {
   return answers
 }
 
-// Intercept fetch to detect a successful form submission
+// ---------------------------------------------------------------------------
+// Submission detection
+// ---------------------------------------------------------------------------
+
 let submissionDetected = false
 const _fetch = window.fetch.bind(window)
 window.fetch = async function (input, init) {
@@ -252,20 +341,23 @@ window.fetch = async function (input, init) {
       (PLATFORM === 'lever' && url.includes('/apply'))
     if (isSubmission && response.ok) {
       submissionDetected = true
-      chrome.runtime.sendMessage({
-        type: 'APPLICATION_SUBMITTED',
-        jobInfo: extractJobInfo(),
-      })
+      chrome.runtime.sendMessage({ type: 'APPLICATION_SUBMITTED', jobInfo: extractJobInfo() })
     }
   }
   return response
 }
 
+// ---------------------------------------------------------------------------
+// Message listener
+// ---------------------------------------------------------------------------
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'FILL_FORM') {
+    // Respond immediately so the popup shows "Filled" right away;
+    // the async field filling continues in the background.
+    sendResponse({ ok: true, platform: PLATFORM })
     if (PLATFORM === 'greenhouse') fillGreenhouse(msg.fillData)
     else if (PLATFORM === 'lever') fillLever(msg.fillData)
-    sendResponse({ ok: true, platform: PLATFORM })
   }
   if (msg.type === 'GET_JOB_INFO') {
     sendResponse({ jobInfo: extractJobInfo(), platform: PLATFORM })

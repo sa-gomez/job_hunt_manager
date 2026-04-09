@@ -149,7 +149,9 @@ export interface ApplicationProfile {
   requires_future_visa_sponsorship: boolean | null
   willing_to_relocate: boolean | null
   office_availability: string | null
+  country: string | null
   eeoc_gender: string | null
+  eeoc_ethnicity: string | null
   eeoc_race: string | null
   eeoc_veteran_status: string | null
   eeoc_disability_status: string | null

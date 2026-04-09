@@ -13,7 +13,9 @@ class ApplicationProfileUpsert(BaseModel):
     requires_future_visa_sponsorship: bool | None = None
     willing_to_relocate: bool | None = None
     office_availability: str | None = None
+    country: str | None = None
     eeoc_gender: str | None = None
+    eeoc_ethnicity: str | None = None
     eeoc_race: str | None = None
     eeoc_veteran_status: str | None = None
     eeoc_disability_status: str | None = None

@@ -41,8 +41,12 @@ class ApplicationProfile(Base):
     willing_to_relocate: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     office_availability: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Location / country
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # EEOC voluntary self-identification
     eeoc_gender: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    eeoc_ethnicity: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Hispanic/Latino (Yes/No)
     eeoc_race: Mapped[str | None] = mapped_column(String(100), nullable=True)
     eeoc_veteran_status: Mapped[str | None] = mapped_column(String(100), nullable=True)
     eeoc_disability_status: Mapped[str | None] = mapped_column(String(100), nullable=True)

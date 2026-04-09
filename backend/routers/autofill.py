@@ -33,7 +33,9 @@ class FillData(BaseModel):
     requires_future_visa_sponsorship: bool | None
     willing_to_relocate: bool | None
     office_availability: str | None
+    country: str | None
     eeoc_gender: str | None
+    eeoc_ethnicity: str | None
     eeoc_race: str | None
     eeoc_veteran_status: str | None
     eeoc_disability_status: str | None
@@ -92,7 +94,9 @@ async def get_fill_data(
         requires_future_visa_sponsorship=ap.requires_future_visa_sponsorship if ap else None,
         willing_to_relocate=ap.willing_to_relocate if ap else None,
         office_availability=ap.office_availability if ap else None,
+        country=ap.country if ap else None,
         eeoc_gender=ap.eeoc_gender if ap else None,
+        eeoc_ethnicity=ap.eeoc_ethnicity if ap else None,
         eeoc_race=ap.eeoc_race if ap else None,
         eeoc_veteran_status=ap.eeoc_veteran_status if ap else None,
         eeoc_disability_status=ap.eeoc_disability_status if ap else None,

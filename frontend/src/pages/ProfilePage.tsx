@@ -688,7 +688,9 @@ const EMPTY_APP_PROFILE: ApplicationProfileUpsert = {
   requires_future_visa_sponsorship: null,
   willing_to_relocate: null,
   office_availability: null,
+  country: null,
   eeoc_gender: null,
+  eeoc_ethnicity: null,
   eeoc_race: null,
   eeoc_veteran_status: null,
   eeoc_disability_status: null,
@@ -822,7 +824,9 @@ function ApplicationProfileSection({ profileId }: { profileId: number }) {
         requires_future_visa_sponsorship: ap.requires_future_visa_sponsorship,
         willing_to_relocate: ap.willing_to_relocate,
         office_availability: ap.office_availability,
+        country: ap.country,
         eeoc_gender: ap.eeoc_gender,
+        eeoc_ethnicity: ap.eeoc_ethnicity,
         eeoc_race: ap.eeoc_race,
         eeoc_veteran_status: ap.eeoc_veteran_status,
         eeoc_disability_status: ap.eeoc_disability_status,
@@ -916,13 +920,36 @@ function ApplicationProfileSection({ profileId }: { profileId: number }) {
             onChange={e => setForm(f => ({ ...f, office_availability: e.target.value || null }))}
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder='e.g. "United States"'
+            value={form.country ?? ''}
+            onChange={e => setForm(f => ({ ...f, country: e.target.value || null }))}
+          />
+        </div>
       </div>
 
       <div className="border-t border-gray-100 pt-4 space-y-3">
         <h3 className="text-sm font-medium text-gray-700">EEOC Self-Identification (optional)</h3>
         <div className="grid grid-cols-2 gap-4">
           {textField('Gender', 'eeoc_gender')}
-          {textField('Race / Ethnicity', 'eeoc_race')}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hispanic / Latino</label>
+            <select
+              className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={form.eeoc_ethnicity ?? ''}
+              onChange={e => setForm(f => ({ ...f, eeoc_ethnicity: e.target.value || null }))}
+            >
+              <option value="">Not specified</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+              <option value="I don't wish to answer">I don't wish to answer</option>
+            </select>
+          </div>
+          {textField('Race', 'eeoc_race')}
           {textField('Veteran Status', 'eeoc_veteran_status')}
           {textField('Disability Status', 'eeoc_disability_status')}
         </div>
