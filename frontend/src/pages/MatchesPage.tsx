@@ -262,7 +262,11 @@ export function MatchesPage() {
   }
 
   useEffect(() => {
-    if (currentProfile) loadResults(currentProfile.id, page)
+    if (!currentProfile) return
+    loadResults(currentProfile.id, page)
+    jobsApi.pendingResults(currentProfile.id).then(p => {
+      if (p.total > 0) setPendingPage(p)
+    })
   }, [currentProfile?.id, page])
 
   useEffect(() => {
