@@ -16,7 +16,7 @@ export function KanbanPage() {
     profileApi.list().then((ps) => {
       if (ps.length > 0) {
         setProfileId(ps[0].id)
-        jobsApi.results(ps[0].id).then(setResults)
+        jobsApi.results(ps[0].id).then((page) => setResults(page.items))
       }
     })
   }, [])
