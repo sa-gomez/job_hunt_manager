@@ -38,7 +38,12 @@ export function KanbanPage() {
     const ids = results.filter(r => r.status === status).map(r => r.id)
     if (ids.length === 0) return
     await jobsApi.bulkDelete(ids)
-    setResults((prev) => prev.filter((r) => r.status !== status))
+    if (status === 'new' && profileId) {
+      const next = await jobsApi.results(profileId, 1, 'new')
+      setResults((prev) => [...prev.filter((r) => r.status !== 'new'), ...next.items])
+    } else {
+      setResults((prev) => prev.filter((r) => r.status !== status))
+    }
   }
 
   const byStatus = (status: string) => results.filter((r) => r.status === status)

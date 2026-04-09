@@ -81,21 +81,22 @@ async def discard_results(body: DiscardResultsRequest, db: AsyncSession = Depend
 async def list_results(
     profile_id: int,
     page: int = 1,
+    status: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
+    filters = [ScanResult.profile_id == profile_id, ScanResult.status != "pending"]
+    if status:
+        filters.append(ScanResult.status == status)
     offset = (page - 1) * PAGE_SIZE
     total = (
         await db.execute(
-            select(func.count()).select_from(ScanResult).where(
-                ScanResult.profile_id == profile_id,
-                ScanResult.status != "pending",
-            )
+            select(func.count()).select_from(ScanResult).where(*filters)
         )
     ).scalar_one()
     rows = (
         await db.execute(
             select(ScanResult)
-            .where(ScanResult.profile_id == profile_id, ScanResult.status != "pending")
+            .where(*filters)
             .options(selectinload(ScanResult.job))
             .order_by(ScanResult.score.desc())
             .offset(offset)

@@ -118,8 +118,8 @@ export interface ScanResultPage {
 }
 
 export const jobsApi = {
-  results: (profileId: number, page = 1) =>
-    api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page } }).then(r => r.data),
+  results: (profileId: number, page = 1, status?: string) =>
+    api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),
   pendingResults: (profileId: number) =>
     api.get<ScanResultPage>('/results/pending', { params: { profile_id: profileId } }).then(r => r.data),
   commitResults: (profileId: number) =>
