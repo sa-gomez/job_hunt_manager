@@ -128,6 +128,14 @@ Move jobs through the Kanban board (New → Saved → Applied → Archived) as y
 
 ---
 
+## Browser Extension
+
+A companion Chrome extension lets you autofill Greenhouse and Lever application forms directly from your profile, and automatically marks jobs as **Applied** in the app when you submit a form.
+
+See [browser_extension/README.md](browser_extension/README.md) for installation and usage instructions.
+
+---
+
 ## Adding companies to scrape
 
 Greenhouse and Lever host per-company job boards. The scrapers include a mapping of common company names to their board slugs. To add a company, update `GREENHOUSE_SLUGS` in `backend/scrapers/greenhouse.py` or `LEVER_SLUGS` in `backend/scrapers/lever.py`, or simply add the company name to your profile's target companies — the scraper will attempt to use the normalized name as a slug directly.
