@@ -21,6 +21,6 @@ class ScanResult(Base):
     )
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     score_breakdown: Mapped[dict] = mapped_column(JSON, default=dict)
-    status: Mapped[str] = mapped_column(String(50), default="new")
+    status: Mapped[str] = mapped_column(String(50), default="pending")
 
     job: Mapped["JobPosting"] = relationship("JobPosting", lazy="select")

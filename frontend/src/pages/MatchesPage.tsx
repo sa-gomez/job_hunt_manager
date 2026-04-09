@@ -16,7 +16,7 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
   )
 }
 
-function ResultCard({ result, onStatusChange }: { result: ScanResult; onStatusChange: () => void }) {
+function ResultCard({ result, onStatusChange, onDelete }: { result: ScanResult; onStatusChange: () => void; onDelete?: () => void }) {
   const [updating, setUpdating] = useState(false)
 
   const update = async (status: string) => {
@@ -24,6 +24,16 @@ function ResultCard({ result, onStatusChange }: { result: ScanResult; onStatusCh
     try {
       await jobsApi.updateStatus(result.id, status)
       onStatusChange()
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const remove = async () => {
+    setUpdating(true)
+    try {
+      await jobsApi.deleteResult(result.id)
+      onDelete?.()
     } finally {
       setUpdating(false)
     }
@@ -92,6 +102,19 @@ function ResultCard({ result, onStatusChange }: { result: ScanResult; onStatusCh
             <option value="applied">Applied</option>
             <option value="archived">Archived</option>
           </select>
+          {onDelete && (
+            <button
+              disabled={updating}
+              onClick={remove}
+              title="Delete match"
+              className="text-gray-300 hover:text-red-400 disabled:opacity-30 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6 2a1 1 0 0 0-1 1H3a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2h-2a1 1 0 0 0-1-1H6zM4 7a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8a1 1 0 1 1 2 0v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a1 1 0 0 1 1-1z"/>
+              </svg>
+            </button>
+          )}
+
         </div>
       </div>
     </div>
@@ -135,6 +158,7 @@ function isTimed(msg: string) {
 export function MatchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [resultPage, setResultPage] = useState<ScanResultPage | null>(null)
+  const [pendingPage, setPendingPage] = useState<ScanResultPage | null>(null)
   const [page, setPage] = useState(1)
   const [scanning, setScanning] = useState(false)
   const [activeScanId, setActiveScanId] = useState<string | null>(null)
@@ -176,6 +200,20 @@ export function MatchesPage() {
   const loadResults = async (profileId: number, p = page) => {
     const r = await jobsApi.results(profileId, p)
     setResultPage(r)
+  }
+
+  const keepAll = async () => {
+    if (!currentProfile) return
+    await jobsApi.commitResults(currentProfile.id)
+    setPendingPage(null)
+    setPage(1)
+    await loadResults(currentProfile.id, 1)
+  }
+
+  const discardAll = async () => {
+    if (!currentProfile) return
+    await jobsApi.discardResults(currentProfile.id)
+    setPendingPage(null)
   }
 
   useEffect(() => {
@@ -232,8 +270,13 @@ export function MatchesPage() {
           setScanStatus(state.message ?? `Done — ${state.jobs_found ?? 0} jobs found`)
           setScanning(false)
           setLogExpanded(false)
-          setPage(1)
-          await loadResults(currentProfile.id, 1)
+          const pending = await jobsApi.pendingResults(currentProfile.id)
+          if (pending.total > 0) {
+            setPendingPage(pending)
+          } else {
+            setPage(1)
+            await loadResults(currentProfile.id, 1)
+          }
         } else if (state.status === 'error') {
           clearInterval(pollRef.current!)
           setActiveScanId(null)
@@ -367,6 +410,35 @@ export function MatchesPage() {
         </div>
       )}
 
+      {pendingPage && (
+        <div className="mb-6 border border-indigo-200 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 bg-indigo-50">
+            <span className="text-sm font-semibold text-indigo-800">
+              {pendingPage.total} new {pendingPage.total === 1 ? 'match' : 'matches'} found — keep or discard?
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={discardAll}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md bg-white hover:bg-gray-50 transition-colors"
+              >
+                Discard All
+              </button>
+              <button
+                onClick={keepAll}
+                className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+              >
+                Keep All
+              </button>
+            </div>
+          </div>
+          <div className="p-4 space-y-3">
+            {pendingPage.items.map((r) => (
+              <ResultCard key={r.id} result={r} onStatusChange={() => {}} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {!resultPage || resultPage.total === 0 ? (
         <div className="text-center py-16 text-gray-400">
           No results yet. Run a scan to find matching jobs.
@@ -379,6 +451,7 @@ export function MatchesPage() {
                 key={r.id}
                 result={r}
                 onStatusChange={() => loadResults(currentProfile.id)}
+                onDelete={() => loadResults(currentProfile.id)}
               />
             ))}
           </div>

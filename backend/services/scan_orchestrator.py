@@ -119,7 +119,7 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
 
         # Score and upsert results (update if already scored for this profile+job)
         _scan_state[scan_id]["message"] = f"Scoring {len(persisted_jobs)} jobs…"
-        scan_results: list[ScanResult] = []
+        new_results: list[ScanResult] = []
         for job in persisted_jobs:
             final_score, breakdown = score_job(profile, job)
             existing_result = (
@@ -134,24 +134,26 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
                 existing_result.score = final_score
                 existing_result.score_breakdown = breakdown
                 existing_result.scanned_at = datetime.now(timezone.utc)
-                scan_results.append(existing_result)
+                # preserve existing status — do not reset to pending
             else:
-                new_result = ScanResult(
+                nr = ScanResult(
                     profile_id=profile_id,
                     job_id=job.id,
                     score=final_score,
                     score_breakdown=breakdown,
                 )
-                db.add(new_result)
-                scan_results.append(new_result)
+                db.add(nr)
+                new_results.append(nr)
 
         await db.commit()
+        # IDs are now populated after commit
+        _scan_state[scan_id]["pending_result_ids"] = [r.id for r in new_results]
 
         cancelled = _is_cancelled(scan_id)
         _scan_state[scan_id]["status"] = "cancelled" if cancelled else "complete"
         _scan_state[scan_id]["message"] = f"Cancelled — {len(persisted_jobs)} jobs saved" if cancelled else f"Done — {len(persisted_jobs)} jobs found"
         _scan_state[scan_id]["jobs_found"] = len(persisted_jobs)
-        _scan_state[scan_id]["results_created"] = len(scan_results)
+        _scan_state[scan_id]["results_created"] = len(new_results)
 
     except Exception as exc:
         logger.exception("Scan %s failed: %s", scan_id, exc)

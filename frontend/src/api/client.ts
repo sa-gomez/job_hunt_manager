@@ -120,6 +120,14 @@ export interface ScanResultPage {
 export const jobsApi = {
   results: (profileId: number, page = 1) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page } }).then(r => r.data),
+  pendingResults: (profileId: number) =>
+    api.get<ScanResultPage>('/results/pending', { params: { profile_id: profileId } }).then(r => r.data),
+  commitResults: (profileId: number) =>
+    api.post('/results/commit', { profile_id: profileId }),
+  discardResults: (profileId: number) =>
+    api.post('/results/discard', { profile_id: profileId }),
   updateStatus: (resultId: number, status: string) =>
     api.patch<ScanResult>(`/results/${resultId}`, { status }).then(r => r.data),
+  deleteResult: (resultId: number) =>
+    api.delete(`/results/${resultId}`),
 }

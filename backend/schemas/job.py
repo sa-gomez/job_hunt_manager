@@ -38,6 +38,14 @@ class ScanResultStatusUpdate(BaseModel):
     status: str
 
 
+class CommitResultsRequest(BaseModel):
+    profile_id: int
+
+
+class DiscardResultsRequest(BaseModel):
+    profile_id: int
+
+
 class ScanResultPage(BaseModel):
     items: list[ScanResultResponse]
     total: int

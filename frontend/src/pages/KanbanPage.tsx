@@ -29,6 +29,11 @@ export function KanbanPage() {
     )
   }
 
+  const remove = async (resultId: number) => {
+    await jobsApi.deleteResult(resultId)
+    setResults((prev) => prev.filter((r) => r.id !== resultId))
+  }
+
   const byStatus = (status: string) => results.filter((r) => r.status === status)
 
   return (
@@ -67,17 +72,28 @@ export function KanbanPage() {
                     <span className="text-xs text-indigo-600 font-semibold">
                       {Math.round(r.score * 100)}% match
                     </span>
-                    {r.job.url && (
-                      <a
-                        href={r.job.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-gray-400 hover:text-indigo-600"
-                        onClick={(e) => e.stopPropagation()}
+                    <div className="flex items-center gap-2">
+                      {r.job.url && (
+                        <a
+                          href={r.job.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-gray-400 hover:text-indigo-600"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          →
+                        </a>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); remove(r.id) }}
+                        title="Delete match"
+                        className="text-gray-300 hover:text-red-400 transition-colors"
                       >
-                        →
-                      </a>
-                    )}
+                        <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M6 2a1 1 0 0 0-1 1H3a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2h-2a1 1 0 0 0-1-1H6zM4 7a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8a1 1 0 1 1 2 0v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a1 1 0 0 1 1-1z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
