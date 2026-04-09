@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
@@ -169,6 +169,9 @@ function CompanyTagInput({
 }) {
   const [input, setInput] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [hiddenCount, setHiddenCount] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const add = () => {
     const trimmed = input.trim()
@@ -177,6 +180,34 @@ function CompanyTagInput({
     }
     setInput('')
   }
+
+  // Measure how many tags overflow the 2-row window so we can show "+N more".
+  // Uses overflow:hidden on the container; the pill is absolutely positioned so
+  // it always appears within those 2 visual lines.
+  useLayoutEffect(() => {
+    if (expanded) { setHiddenCount(0); return }
+    const container = containerRef.current
+    if (!container || value.length === 0) { setHiddenCount(0); return }
+
+    const measure = () => {
+      const tags = Array.from(container.querySelectorAll('[data-tag]')) as HTMLElement[]
+      if (tags.length === 0) return
+      const firstTop = tags[0].offsetTop
+      const rowH = tags[0].offsetHeight
+      // Anything with offsetTop beyond row 2 is hidden by overflow:hidden
+      const twoRowMaxTop = firstTop + rowH + 8 + 4 // rowH + gap(8px) + 4px tolerance
+      let hidden = 0
+      for (const tag of tags) {
+        if (tag.offsetTop > twoRowMaxTop) hidden++
+      }
+      setHiddenCount(hidden)
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [value, expanded])
 
   return (
     <div>
@@ -190,10 +221,15 @@ function CompanyTagInput({
           + Bulk Add
         </button>
       </div>
-      <div className="flex gap-2 mb-2 flex-wrap">
+      {/* Tag list: clipped to 2 rows when collapsed */}
+      <div
+        ref={containerRef}
+        className={`relative flex flex-wrap gap-2 mb-2${!expanded ? ' overflow-hidden max-h-[64px]' : ''}`}
+      >
         {value.map((tag) => (
           <span
             key={tag}
+            data-tag=""
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-sm"
           >
             {tag}
@@ -206,6 +242,28 @@ function CompanyTagInput({
             </button>
           </span>
         ))}
+        {expanded && value.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 text-sm hover:border-indigo-400 hover:text-indigo-700"
+          >
+            Show less
+          </button>
+        )}
+        {/* Gradient fade + pill, absolutely pinned to bottom-right within the 2-row clip */}
+        {!expanded && hiddenCount > 0 && (
+          <>
+            <div className="absolute bottom-0 right-0 w-28 h-7 bg-gradient-to-r from-white/0 to-white pointer-events-none" />
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="absolute bottom-0 right-0 px-2 py-0.5 rounded-full border border-gray-300 text-gray-500 text-sm bg-white hover:border-indigo-400 hover:text-indigo-700"
+            >
+              +{hiddenCount} more
+            </button>
+          </>
+        )}
       </div>
       <div className="flex gap-2">
         <input

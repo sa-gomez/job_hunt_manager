@@ -106,6 +106,15 @@ async def list_results(
     return ScanResultPage(items=rows, total=total, page=page, page_size=PAGE_SIZE)
 
 
+@router.delete("/results", status_code=204)
+async def delete_all_results(profile_id: int, db: AsyncSession = Depends(get_db)):
+    await db.execute(
+        delete(ScanResult)
+        .where(ScanResult.profile_id == profile_id, ScanResult.status != "pending")
+    )
+    await db.commit()
+
+
 @router.post("/results/bulk-delete", status_code=204)
 async def bulk_delete_results(body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     if body.ids:

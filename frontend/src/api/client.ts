@@ -132,4 +132,6 @@ export const jobsApi = {
     api.delete(`/results/${resultId}`),
   bulkDelete: (ids: number[]) =>
     api.post('/results/bulk-delete', { ids }),
+  deleteAll: (profileId: number) =>
+    api.delete('/results', { params: { profile_id: profileId } }),
 }

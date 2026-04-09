@@ -253,6 +253,14 @@ export function MatchesPage() {
     await loadResults(currentProfile.id, page)
   }
 
+  const deleteAll = async () => {
+    if (!currentProfile) return
+    if (!confirm(`Delete all ${resultPage?.total ?? ''} matches? This cannot be undone.`)) return
+    await jobsApi.deleteAll(currentProfile.id)
+    setPage(1)
+    await loadResults(currentProfile.id, 1)
+  }
+
   useEffect(() => {
     if (currentProfile) loadResults(currentProfile.id, page)
   }, [currentProfile?.id, page])
@@ -500,6 +508,12 @@ export function MatchesPage() {
                 Delete {selectedIds.size} selected
               </button>
             )}
+            <button
+              onClick={deleteAll}
+              className="ml-auto text-sm text-red-400 hover:text-red-600 font-medium"
+            >
+              Delete all {resultPage?.total ?? ''}
+            </button>
           </div>
           <div className="space-y-3">
             {resultPage.items.map((r) => (
