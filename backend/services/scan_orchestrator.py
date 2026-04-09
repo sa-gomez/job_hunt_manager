@@ -95,6 +95,13 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
             target_set = {c.lower() for c in profile.target_companies}
             all_jobs = [j for j in all_jobs if j.company and j.company.lower() in target_set]
 
+        # Filter to target roles only
+        if profile.target_roles:
+            all_jobs = [
+                j for j in all_jobs
+                if j.title and any(role.lower() in j.title.lower() for role in profile.target_roles)
+            ]
+
         # Filter to profile city (keep remote jobs if remote_ok)
         if profile.location:
             city = profile.location.lower()
@@ -129,6 +136,16 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
             except Exception as exc:
                 logger.warning("Failed to persist job %s/%s: %s", job.source, job.external_id, exc)
 
+        await db.commit()
+
+        # Discard any leftover pending results from previous scans before creating new ones
+        from sqlalchemy import delete as sa_delete
+        await db.execute(
+            sa_delete(ScanResult).where(
+                ScanResult.profile_id == profile_id,
+                ScanResult.status == "pending",
+            )
+        )
         await db.commit()
 
         # Score and upsert results (update if already scored for this profile+job)
