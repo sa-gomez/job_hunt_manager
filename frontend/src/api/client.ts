@@ -130,4 +130,6 @@ export const jobsApi = {
     api.patch<ScanResult>(`/results/${resultId}`, { status }).then(r => r.data),
   deleteResult: (resultId: number) =>
     api.delete(`/results/${resultId}`),
+  bulkDelete: (ids: number[]) =>
+    api.post('/results/bulk-delete', { ids }),
 }

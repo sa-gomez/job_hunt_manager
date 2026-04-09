@@ -34,6 +34,13 @@ export function KanbanPage() {
     setResults((prev) => prev.filter((r) => r.id !== resultId))
   }
 
+  const clearColumn = async (status: string) => {
+    const ids = results.filter(r => r.status === status).map(r => r.id)
+    if (ids.length === 0) return
+    await jobsApi.bulkDelete(ids)
+    setResults((prev) => prev.filter((r) => r.status !== status))
+  }
+
   const byStatus = (status: string) => results.filter((r) => r.status === status)
 
   return (
@@ -52,9 +59,20 @@ export function KanbanPage() {
           >
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-gray-700">{col.label}</h2>
-              <span className="text-xs text-gray-400 bg-white rounded-full px-2 py-0.5 border">
-                {byStatus(col.key).length}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 bg-white rounded-full px-2 py-0.5 border">
+                  {byStatus(col.key).length}
+                </span>
+                {byStatus(col.key).length > 0 && (
+                  <button
+                    onClick={() => clearColumn(col.key)}
+                    title="Clear column"
+                    className="text-xs text-gray-400 hover:text-red-400 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               {byStatus(col.key).map((r) => (

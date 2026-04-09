@@ -46,6 +46,10 @@ class DiscardResultsRequest(BaseModel):
     profile_id: int
 
 
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
 class ScanResultPage(BaseModel):
     items: list[ScanResultResponse]
     total: int

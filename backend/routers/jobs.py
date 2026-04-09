@@ -7,6 +7,7 @@ from backend.database import get_db
 from backend.models.job import JobPosting
 from backend.models.scan import ScanResult
 from backend.schemas.job import (
+    BulkDeleteRequest,
     CommitResultsRequest,
     DiscardResultsRequest,
     JobResponse,
@@ -102,6 +103,13 @@ async def list_results(
         )
     ).scalars().all()
     return ScanResultPage(items=rows, total=total, page=page, page_size=PAGE_SIZE)
+
+
+@router.post("/results/bulk-delete", status_code=204)
+async def bulk_delete_results(body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
+    if body.ids:
+        await db.execute(delete(ScanResult).where(ScanResult.id.in_(body.ids)))
+        await db.commit()
 
 
 @router.delete("/results/{result_id}", status_code=204)

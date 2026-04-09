@@ -16,7 +16,13 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
   )
 }
 
-function ResultCard({ result, onStatusChange, onDelete }: { result: ScanResult; onStatusChange: () => void; onDelete?: () => void }) {
+function ResultCard({ result, onStatusChange, onDelete, selected, onSelect }: {
+  result: ScanResult
+  onStatusChange: () => void
+  onDelete?: () => void
+  selected?: boolean
+  onSelect?: (id: number) => void
+}) {
   const [updating, setUpdating] = useState(false)
 
   const update = async (status: string) => {
@@ -54,8 +60,16 @@ function ResultCard({ result, onStatusChange, onDelete }: { result: ScanResult; 
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+    <div className={`bg-white rounded-xl border p-5 hover:shadow-sm transition-shadow ${selected ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200'}`}>
       <div className="flex items-start justify-between gap-4">
+        {onSelect && (
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={() => onSelect(result.id)}
+            className="mt-1 shrink-0 accent-indigo-600 cursor-pointer"
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-semibold text-gray-900 truncate">{result.job.title}</h3>
@@ -159,6 +173,7 @@ export function MatchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [resultPage, setResultPage] = useState<ScanResultPage | null>(null)
   const [pendingPage, setPendingPage] = useState<ScanResultPage | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [scanning, setScanning] = useState(false)
   const [activeScanId, setActiveScanId] = useState<string | null>(null)
@@ -200,6 +215,7 @@ export function MatchesPage() {
   const loadResults = async (profileId: number, p = page) => {
     const r = await jobsApi.results(profileId, p)
     setResultPage(r)
+    setSelectedIds(new Set())
   }
 
   const keepAll = async () => {
@@ -214,6 +230,27 @@ export function MatchesPage() {
     if (!currentProfile) return
     await jobsApi.discardResults(currentProfile.id)
     setPendingPage(null)
+  }
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (!resultPage) return
+    const allIds = resultPage.items.map(r => r.id)
+    const allSelected = allIds.every(id => selectedIds.has(id))
+    setSelectedIds(allSelected ? new Set() : new Set(allIds))
+  }
+
+  const deleteSelected = async () => {
+    if (!currentProfile || selectedIds.size === 0) return
+    await jobsApi.bulkDelete([...selectedIds])
+    await loadResults(currentProfile.id, page)
   }
 
   useEffect(() => {
@@ -445,6 +482,25 @@ export function MatchesPage() {
         </div>
       ) : (
         <>
+          <div className="flex items-center gap-3 mb-3">
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={resultPage.items.length > 0 && resultPage.items.every(r => selectedIds.has(r.id))}
+                onChange={toggleSelectAll}
+                className="accent-indigo-600"
+              />
+              Select all
+            </label>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={deleteSelected}
+                className="text-sm text-red-600 hover:text-red-700 font-medium"
+              >
+                Delete {selectedIds.size} selected
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
             {resultPage.items.map((r) => (
               <ResultCard
@@ -452,6 +508,8 @@ export function MatchesPage() {
                 result={r}
                 onStatusChange={() => loadResults(currentProfile.id)}
                 onDelete={() => loadResults(currentProfile.id)}
+                selected={selectedIds.has(r.id)}
+                onSelect={toggleSelect}
               />
             ))}
           </div>
