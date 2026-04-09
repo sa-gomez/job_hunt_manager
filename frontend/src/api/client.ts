@@ -117,6 +117,10 @@ export interface ScanResultPage {
   page_size: number
 }
 
+export const companiesApi = {
+  list: () => api.get<string[]>('/companies').then(r => r.data),
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),

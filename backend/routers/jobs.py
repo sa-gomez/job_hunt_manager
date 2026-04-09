@@ -15,8 +15,15 @@ from backend.schemas.job import (
     ScanResultResponse,
     ScanResultStatusUpdate,
 )
+from backend.scrapers.registry import COMPANIES
 
 router = APIRouter(prefix="/api", tags=["jobs"])
+
+
+@router.get("/companies", response_model=list[str])
+async def list_known_companies():
+    """Return display names of all companies with known scraper slugs."""
+    return sorted(c.name for c in COMPANIES)
 
 VALID_STATUSES = {"new", "saved", "applied", "archived"}
 

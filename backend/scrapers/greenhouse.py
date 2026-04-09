@@ -8,39 +8,9 @@ import httpx
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.scrapers.base import BaseScraper
+from backend.scrapers.registry import DEFAULT_GREENHOUSE_SLUGS, GREENHOUSE_SLUGS
 
 logger = logging.getLogger(__name__)
-
-# Maps company name (lowercase, no spaces/punctuation) → Greenhouse board slug
-GREENHOUSE_SLUGS: dict[str, str] = {
-    "stripe": "stripe",
-    "airbnb": "airbnb",
-    "shopify": "shopify",
-    "notion": "notion",
-    "figma": "figma",
-    "vercel": "vercel",
-    "linear": "linear",
-    "discord": "discord",
-    "github": "github",
-    "hashicorp": "hashicorp",
-    "elastic": "elastic",
-    "twilio": "twilio",
-    "pagerduty": "pagerduty",
-    "squarespace": "squarespace",
-    "hubspot": "hubspot",
-    "zendesk": "zendesk",
-    "mongodb": "mongodb",
-    "cloudflare": "cloudflare",
-    "databricks": "databricks",
-    "snowflake": "snowflake",
-    "confluent": "confluent",
-    "gitlab": "gitlab",
-}
-
-DEFAULT_GREENHOUSE_SLUGS = [
-    "stripe", "airbnb", "shopify", "notion", "figma", "vercel", "discord",
-    "github", "cloudflare", "databricks", "gitlab", "hubspot", "mongodb",
-]
 
 
 def _normalize(name: str) -> str:

@@ -1,17 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+import { companiesApi, credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
-
-// Companies with known scraper slugs (Greenhouse + Lever)
-const KNOWN_COMPANIES = [
-  'Airbnb', 'Airtable', 'Anthropic', 'Asana', 'Brex', 'Carta', 'Checkr',
-  'Cloudflare', 'Coinbase', 'Confluent', 'Databricks', 'Discord', 'Elastic',
-  'Figma', 'GitHub', 'GitLab', 'Gusto', 'HashiCorp', 'HubSpot', 'Lattice',
-  'Lever', 'Linear', 'Loom', 'Mercury', 'Modal', 'MongoDB', 'Netflix',
-  'Notion', 'OpenAI', 'PagerDuty', 'Plaid', 'Replit', 'Retool', 'Rippling',
-  'Scale AI', 'Shopify', 'Snowflake', 'Squarespace', 'Stripe', 'Together',
-  'Twilio', 'Vercel', 'Zendesk',
-]
 
 const CITIES = [
   'Atlanta', 'Austin', 'Baltimore', 'Boston', 'Charlotte', 'Chicago',
@@ -174,9 +163,11 @@ function TagInput({
 function CompanyTagInput({
   value,
   onChange,
+  knownCompanies = [],
 }: {
   value: string[]
   onChange: (v: string[]) => void
+  knownCompanies?: string[]
 }) {
   const [input, setInput] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -191,7 +182,7 @@ function CompanyTagInput({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const suggestions = input.trim().length >= 1
-    ? KNOWN_COMPANIES.filter(
+    ? knownCompanies.filter(
         c => c.toLowerCase().startsWith(input.trim().toLowerCase()) && !value.includes(c)
       )
     : []
@@ -495,6 +486,11 @@ export function ProfilePage() {
   const [form, setForm] = useState<ProfileCreate>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [knownCompanies, setKnownCompanies] = useState<string[]>([])
+
+  useEffect(() => {
+    companiesApi.list().then(setKnownCompanies)
+  }, [])
 
   useEffect(() => {
     profileApi.list().then((ps) => {
@@ -608,6 +604,7 @@ export function ProfilePage() {
         <CompanyTagInput
           value={form.target_companies ?? []}
           onChange={(v) => setForm((f) => ({ ...f, target_companies: v }))}
+          knownCompanies={knownCompanies}
         />
 
         <button

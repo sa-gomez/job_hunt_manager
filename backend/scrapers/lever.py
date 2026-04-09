@@ -7,39 +7,9 @@ import httpx
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.scrapers.base import BaseScraper
+from backend.scrapers.registry import DEFAULT_LEVER_SLUGS, LEVER_SLUGS
 
 logger = logging.getLogger(__name__)
-
-# Maps company name (lowercase, no spaces/punctuation) → Lever posting slug
-LEVER_SLUGS: dict[str, str] = {
-    "netflix": "netflix",
-    "coinbase": "coinbase",
-    "plaid": "plaid",
-    "scaleai": "scaleai",
-    "scale": "scaleai",
-    "lever": "lever",
-    "rippling": "rippling",
-    "brex": "brex",
-    "gusto": "gusto",
-    "lattice": "lattice",
-    "airtable": "airtable",
-    "asana": "asana",
-    "carta": "carta",
-    "checkr": "checkr",
-    "anthropic": "anthropic",
-    "openai": "openai",
-    "together": "together",
-    "modal": "modal",
-    "replit": "replit",
-    "retool": "retool",
-    "loom": "loom",
-    "mercury": "mercury",
-}
-
-DEFAULT_LEVER_SLUGS = [
-    "netflix", "coinbase", "rippling", "brex", "gusto", "airtable",
-    "asana", "anthropic", "openai", "retool", "replit",
-]
 
 
 def _normalize(name: str) -> str:
