@@ -9,6 +9,7 @@ from backend.models.scan import ScanResult
 from backend.schemas.job import (
     BulkDeleteRequest,
     CommitResultsRequest,
+    CompanyInfoResponse,
     DiscardResultsRequest,
     JobResponse,
     ScanResultPage,
@@ -20,10 +21,20 @@ from backend.scrapers.registry import COMPANIES
 router = APIRouter(prefix="/api", tags=["jobs"])
 
 
-@router.get("/companies", response_model=list[str])
+@router.get("/companies", response_model=list[CompanyInfoResponse])
 async def list_known_companies():
-    """Return display names of all companies with known scraper slugs."""
-    return sorted(c.name for c in COMPANIES)
+    """Return all companies in the registry, sorted by name."""
+    return sorted(
+        [
+            CompanyInfoResponse(
+                name=c.name,
+                category=c.category,
+                has_scraper=bool(c.greenhouse_slug or c.lever_slug),
+            )
+            for c in COMPANIES
+        ],
+        key=lambda c: c.name,
+    )
 
 VALID_STATUSES = {"new", "saved", "applied", "archived"}
 

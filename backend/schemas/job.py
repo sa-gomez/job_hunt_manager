@@ -55,3 +55,9 @@ class ScanResultPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class CompanyInfoResponse(BaseModel):
+    name: str
+    category: str | None
+    has_scraper: bool  # True if a Greenhouse or Lever slug is known

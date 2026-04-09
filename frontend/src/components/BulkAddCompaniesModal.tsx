@@ -1,44 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-
-const COMPANY_CATEGORIES: Record<string, string[]> = {
-  'Big Tech': [
-    'Adobe', 'Amazon', 'Apple', 'Cisco', 'Google', 'IBM', 'Intel', 'Meta',
-    'Microsoft', 'Netflix', 'Oracle', 'Salesforce', 'SAP', 'ServiceNow',
-    'VMware', 'Workday',
-  ],
-  'Fintech & Payments': [
-    'Affirm', 'Block', 'Brex', 'Chime', 'Coinbase', 'Marqeta', 'PayPal',
-    'Plaid', 'Robinhood', 'Stripe',
-  ],
-  'Cloud & Infrastructure': [
-    'Akamai', 'Cloudflare', 'Databricks', 'Datadog', 'DigitalOcean', 'Elastic',
-    'Fastly', 'HashiCorp', 'MongoDB', 'New Relic', 'PagerDuty', 'Snowflake',
-    'Splunk', 'Supabase', 'Twilio', 'Vercel',
-  ],
-  'Security': [
-    'Auth0 (Okta)', 'CrowdStrike', 'Okta', 'Palo Alto Networks', 'SentinelOne',
-    'Wiz', 'Zscaler',
-  ],
-  'Developer Tools & Productivity': [
-    'Airtable', 'Asana', 'Atlassian', 'Figma', 'GitHub', 'GitLab', 'Linear',
-    'Notion', 'Slack', 'Zoom',
-  ],
-  'Consumer & Social': [
-    'Airbnb', 'DoorDash', 'Dropbox', 'Instacart', 'Lyft', 'Pinterest',
-    'Reddit', 'Shopify', 'Snap', 'Spotify', 'TikTok', 'Uber', 'X (Twitter)',
-  ],
-  'Enterprise Software': [
-    'Box', 'Confluent', 'Coupa', 'Dynatrace', 'Freshworks', 'HubSpot',
-    'Marketo', 'MuleSoft', 'Qualtrics', 'Zendesk',
-  ],
-  'AI & ML': [
-    'Anthropic', 'Cohere', 'DeepMind', 'Hugging Face', 'Mistral AI', 'OpenAI',
-    'Perplexity', 'Scale AI', 'Stability AI',
-  ],
-  'Hardware & Semiconductors': [
-    'AMD', 'Arm', 'ASML', 'Broadcom', 'Marvell', 'NVIDIA', 'Qualcomm', 'Texas Instruments',
-  ],
-}
+import { companiesApi, type CompanyInfo } from '../api/client'
 
 interface Props {
   existing: string[]
@@ -47,10 +8,15 @@ interface Props {
 }
 
 export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
+  const [companies, setCompanies] = useState<CompanyInfo[]>([])
   const [search, setSearch] = useState('')
   const [checked, setChecked] = useState<Set<string>>(new Set(existing))
   const [pasteText, setPasteText] = useState('')
   const overlayRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    companiesApi.list().then(setCompanies)
+  }, [])
 
   // Close on Escape
   useEffect(() => {
@@ -59,32 +25,34 @@ export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const filteredCategories = useMemo(() => {
-    if (!search.trim()) return COMPANY_CATEGORIES
-    const q = search.toLowerCase()
-    const result: Record<string, string[]> = {}
-    for (const [cat, companies] of Object.entries(COMPANY_CATEGORIES)) {
-      const matched = companies.filter(c => c.toLowerCase().includes(q))
-      if (matched.length > 0) result[cat] = matched
+  // Group companies by category, preserving registry order within each group
+  const categorized = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const result: Record<string, CompanyInfo[]> = {}
+    for (const company of companies) {
+      if (q && !company.name.toLowerCase().includes(q)) continue
+      const cat = company.category ?? 'Other'
+      if (!result[cat]) result[cat] = []
+      result[cat].push(company)
     }
     return result
-  }, [search])
+  }, [companies, search])
 
-  const toggle = (company: string) => {
+  const toggle = (name: string) => {
     setChecked(prev => {
       const next = new Set(prev)
-      if (next.has(company)) next.delete(company)
-      else next.add(company)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
       return next
     })
   }
 
-  const toggleCategory = (companies: string[]) => {
-    const allOn = companies.every(c => checked.has(c))
+  const toggleCategory = (names: string[]) => {
+    const allOn = names.every(n => checked.has(n))
     setChecked(prev => {
       const next = new Set(prev)
-      if (allOn) companies.forEach(c => next.delete(c))
-      else companies.forEach(c => next.add(c))
+      if (allOn) names.forEach(n => next.delete(n))
+      else names.forEach(n => next.add(n))
       return next
     })
   }
@@ -98,7 +66,8 @@ export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
     onConfirm(merged)
   }
 
-  const selectedCount = checked.size + pasteText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length
+  const pasteNames = pasteText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+  const selectedCount = checked.size + pasteNames.length
 
   return (
     <div
@@ -124,17 +93,18 @@ export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
             onChange={e => setSearch(e.target.value)}
           />
 
-          {/* Pre-populated list */}
+          {/* Categorized list */}
           <div className="space-y-4">
-            {Object.entries(filteredCategories).map(([category, companies]) => {
-              const allOn = companies.every(c => checked.has(c))
-              const someOn = companies.some(c => checked.has(c))
+            {Object.entries(categorized).map(([category, entries]) => {
+              const names = entries.map(e => e.name)
+              const allOn = names.every(n => checked.has(n))
+              const someOn = names.some(n => checked.has(n))
               return (
                 <div key={category}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <button
                       type="button"
-                      onClick={() => toggleCategory(companies)}
+                      onClick={() => toggleCategory(names)}
                       className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
                         allOn ? 'bg-indigo-600 border-indigo-600' : someOn ? 'bg-indigo-200 border-indigo-400' : 'border-gray-300 hover:border-indigo-400'
                       }`}
@@ -146,25 +116,26 @@ export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{category}</span>
                   </div>
                   <div className="flex flex-wrap gap-2 pl-6">
-                    {companies.map(company => (
+                    {entries.map(({ name, has_scraper }) => (
                       <button
-                        key={company}
+                        key={name}
                         type="button"
-                        onClick={() => toggle(company)}
+                        onClick={() => toggle(name)}
+                        title={has_scraper ? 'Direct scraper available' : undefined}
                         className={`px-2.5 py-1 rounded-full text-sm border transition-colors ${
-                          checked.has(company)
+                          checked.has(name)
                             ? 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 hover:text-indigo-700'
                         }`}
                       >
-                        {company}
+                        {name}{has_scraper && <span className={`ml-1 text-xs ${checked.has(name) ? 'text-indigo-200' : 'text-indigo-400'}`}>·</span>}
                       </button>
                     ))}
                   </div>
                 </div>
               )
             })}
-            {Object.keys(filteredCategories).length === 0 && (
+            {Object.keys(categorized).length === 0 && (
               <p className="text-sm text-gray-400">No companies match "{search}"</p>
             )}
           </div>

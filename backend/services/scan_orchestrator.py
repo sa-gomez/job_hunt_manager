@@ -90,6 +90,20 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
             except Exception as exc:
                 logger.error("Scraper %s raised: %s", name, exc)
 
+        # Filter to target companies only
+        if profile.target_companies:
+            target_set = {c.lower() for c in profile.target_companies}
+            all_jobs = [j for j in all_jobs if j.company and j.company.lower() in target_set]
+
+        # Filter to profile city (keep remote jobs if remote_ok)
+        if profile.location:
+            city = profile.location.lower()
+            all_jobs = [
+                j for j in all_jobs
+                if (profile.remote_ok and j.remote_flag)
+                or (j.location and city in j.location.lower())
+            ]
+
         # Upsert job postings (dedup by source + external_id)
         _scan_state[scan_id]["message"] = f"Saving {len(all_jobs)} job postings…"
         persisted_jobs: list[JobPosting] = []

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { companiesApi, credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+import { companiesApi, credentialsApi, profileApi, type CompanyInfo, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
 const CITIES = [
@@ -486,7 +486,7 @@ export function ProfilePage() {
   const [form, setForm] = useState<ProfileCreate>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [knownCompanies, setKnownCompanies] = useState<string[]>([])
+  const [knownCompanies, setKnownCompanies] = useState<CompanyInfo[]>([])
 
   useEffect(() => {
     companiesApi.list().then(setKnownCompanies)
@@ -604,7 +604,7 @@ export function ProfilePage() {
         <CompanyTagInput
           value={form.target_companies ?? []}
           onChange={(v) => setForm((f) => ({ ...f, target_companies: v }))}
-          knownCompanies={knownCompanies}
+          knownCompanies={knownCompanies.map(c => c.name)}
         />
 
         <button

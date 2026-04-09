@@ -117,8 +117,14 @@ export interface ScanResultPage {
   page_size: number
 }
 
+export interface CompanyInfo {
+  name: string
+  category: string | null
+  has_scraper: boolean
+}
+
 export const companiesApi = {
-  list: () => api.get<string[]>('/companies').then(r => r.data),
+  list: () => api.get<CompanyInfo[]>('/companies').then(r => r.data),
 }
 
 export const jobsApi = {
