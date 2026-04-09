@@ -4,7 +4,7 @@ import { jobsApi, profileApi, scanApi, type Profile, type ScanResult, type ScanR
 function ScoreBar({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-20 text-gray-500 truncate">{label}</span>
+      <span className="w-12 text-gray-500 truncate">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
         <div
           className="h-1.5 rounded-full bg-indigo-500"
@@ -60,10 +60,10 @@ function ResultCard({ result, onStatusChange }: { result: ScanResult; onStatusCh
             {result.job.location && <span className="ml-2 text-gray-400">· {result.job.location}</span>}
             <span className="ml-2 text-gray-400 capitalize">· {result.job.source}</span>
           </div>
-          <div className="space-y-1">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             <ScoreBar value={result.score_breakdown.skill_score} label="Skills" />
-            <ScoreBar value={result.score_breakdown.role_score} label="Role" />
             <ScoreBar value={result.score_breakdown.location_score} label="Location" />
+            <ScoreBar value={result.score_breakdown.role_score} label="Role" />
             <ScoreBar value={result.score_breakdown.salary_score} label="Salary" />
           </div>
         </div>
