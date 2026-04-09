@@ -102,19 +102,33 @@ async def run_scan(scan_id: str, profile_id: int, db: AsyncSession, sources: lis
 
         await db.commit()
 
-        # Score and persist results
+        # Score and upsert results (update if already scored for this profile+job)
         _scan_state[scan_id]["message"] = f"Scoring {len(persisted_jobs)} jobs…"
         scan_results: list[ScanResult] = []
         for job in persisted_jobs:
             final_score, breakdown = score_job(profile, job)
-            result = ScanResult(
-                profile_id=profile_id,
-                job_id=job.id,
-                score=final_score,
-                score_breakdown=breakdown,
-            )
-            db.add(result)
-            scan_results.append(result)
+            existing_result = (
+                await db.execute(
+                    select(ScanResult).where(
+                        ScanResult.profile_id == profile_id,
+                        ScanResult.job_id == job.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing_result:
+                existing_result.score = final_score
+                existing_result.score_breakdown = breakdown
+                existing_result.scanned_at = datetime.now(timezone.utc)
+                scan_results.append(existing_result)
+            else:
+                new_result = ScanResult(
+                    profile_id=profile_id,
+                    job_id=job.id,
+                    score=final_score,
+                    score_breakdown=breakdown,
+                )
+                db.add(new_result)
+                scan_results.append(new_result)
 
         await db.commit()
 

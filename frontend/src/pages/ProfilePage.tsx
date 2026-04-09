@@ -1,5 +1,90 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { credentialsApi, profileApi, type CredentialInfo, type Profile, type ProfileCreate } from '../api/client'
+
+const CITIES = [
+  'Atlanta', 'Austin', 'Baltimore', 'Boston', 'Charlotte', 'Chicago',
+  'Columbus', 'Dallas', 'Denver', 'Detroit', 'Houston', 'Indianapolis',
+  'Jacksonville', 'Las Vegas', 'Los Angeles', 'Memphis', 'Miami',
+  'Milwaukee', 'Minneapolis', 'Nashville', 'New Orleans', 'New York',
+  'Oklahoma City', 'Philadelphia', 'Phoenix', 'Pittsburgh', 'Portland',
+  'Raleigh', 'Sacramento', 'Salt Lake City', 'San Antonio', 'San Diego',
+  'San Francisco', 'San Jose', 'Seattle', 'St. Louis', 'Tampa',
+  'Washington DC',
+  // International tech hubs
+  'Amsterdam', 'Barcelona', 'Berlin', 'Dublin', 'London', 'Paris',
+  'Singapore', 'Sydney', 'Tokyo', 'Toronto', 'Vancouver',
+]
+
+function LocationInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const suggestions = value.length >= 2
+    ? CITIES.filter(c => c.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
+    : []
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [suggestions.length, value])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const select = (city: string) => { onChange(city); setOpen(false); setActiveIndex(-1) }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex(i => Math.min(i + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault()
+      select(suggestions[activeIndex])
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+      <input
+        type="text"
+        autoComplete="off"
+        className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder="e.g. San Francisco"
+      />
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md text-sm overflow-hidden">
+          {suggestions.map((city, i) => (
+            <li
+              key={city}
+              onMouseDown={() => select(city)}
+              className={`px-3 py-2 cursor-pointer ${i === activeIndex ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-indigo-50 hover:text-indigo-700'}`}
+            >
+              {city}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 const EMPTY: ProfileCreate = {
   full_name: '',
@@ -251,7 +336,7 @@ export function ProfilePage() {
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         {field('Full Name', 'full_name')}
         {field('Email', 'email', 'email')}
-        {field('Location', 'location')}
+        <LocationInput value={form.location ?? ''} onChange={v => setForm(f => ({ ...f, location: v }))} />
 
         <div className="flex items-center gap-3">
           <input

@@ -108,9 +108,16 @@ export const scanApi = {
     api.get<{ scan_id: string; status: string; message?: string; error?: string; jobs_found?: number }>(`/scan/${scanId}`).then(r => r.data),
 }
 
+export interface ScanResultPage {
+  items: ScanResult[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export const jobsApi = {
-  results: (profileId: number) =>
-    api.get<ScanResult[]>('/results', { params: { profile_id: profileId } }).then(r => r.data),
+  results: (profileId: number, page = 1) =>
+    api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page } }).then(r => r.data),
   updateStatus: (resultId: number, status: string) =>
     api.patch<ScanResult>(`/results/${resultId}`, { status }).then(r => r.data),
 }

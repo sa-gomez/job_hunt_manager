@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { jobsApi, profileApi, scanApi, type Profile, type ScanResult } from '../api/client'
+import { jobsApi, profileApi, scanApi, type Profile, type ScanResult, type ScanResultPage } from '../api/client'
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
   return (
@@ -111,6 +111,21 @@ const ALL_SOURCES = [
   { id: 'linkedin', label: 'LinkedIn' },
 ]
 
+// Returns an array of page numbers and '…' strings for the pagination bar.
+// e.g. [1, '…', 5, 6, 7, 8, 9, '…', 20]
+function pageItems(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const delta = 2
+  const left = Math.max(2, current - delta)
+  const right = Math.min(total - 1, current + delta)
+  const items: (number | '…')[] = [1]
+  if (left > 2) items.push('…')
+  for (let i = left; i <= right; i++) items.push(i)
+  if (right < total - 1) items.push('…')
+  items.push(total)
+  return items
+}
+
 const TIMED_PREFIXES = ['Scraping ', 'Saving ', 'Scoring ']
 
 function isTimed(msg: string) {
@@ -119,7 +134,8 @@ function isTimed(msg: string) {
 
 export function MatchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [results, setResults] = useState<ScanResult[]>([])
+  const [resultPage, setResultPage] = useState<ScanResultPage | null>(null)
+  const [page, setPage] = useState(1)
   const [scanning, setScanning] = useState(false)
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(ALL_SOURCES.map(s => s.id)))
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -146,14 +162,14 @@ export function MatchesPage() {
     return () => clearInterval(id)
   }, [scanning])
 
-  const loadResults = async (profileId: number) => {
-    const r = await jobsApi.results(profileId)
-    setResults(r)
+  const loadResults = async (profileId: number, p = page) => {
+    const r = await jobsApi.results(profileId, p)
+    setResultPage(r)
   }
 
   useEffect(() => {
-    if (currentProfile) loadResults(currentProfile.id)
-  }, [currentProfile?.id])
+    if (currentProfile) loadResults(currentProfile.id, page)
+  }, [currentProfile?.id, page])
 
   useEffect(() => {
     if (logExpanded && logContainerRef.current) {
@@ -203,7 +219,8 @@ export function MatchesPage() {
           setScanStatus(state.message ?? `Done — ${state.jobs_found ?? 0} jobs found`)
           setScanning(false)
           setLogExpanded(false)
-          await loadResults(currentProfile.id)
+          setPage(1)
+          await loadResults(currentProfile.id, 1)
         } else if (state.status === 'error') {
           clearInterval(pollRef.current!)
           const errMsg = state.error ?? 'Scan failed. Check the server logs.'
@@ -219,6 +236,11 @@ export function MatchesPage() {
     }
   }
 
+  const totalPages = resultPage ? Math.ceil(resultPage.total / resultPage.page_size) : 0
+  const btnBase = 'min-w-[2rem] px-2 py-1 rounded border text-sm transition-colors'
+  const btnIdle = `${btnBase} border-gray-200 hover:bg-gray-50 disabled:opacity-30`
+  const btnActive = `${btnBase} border-indigo-200 bg-indigo-50 text-indigo-700 font-semibold`
+
   if (!currentProfile) {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center text-gray-500">
@@ -229,8 +251,17 @@ export function MatchesPage() {
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
+          <p className="mt-1 text-xs text-gray-400">
+            Scanning as: <span className="text-gray-600">{currentProfile.location || <span className="italic">no location saved</span>}</span>
+            {currentProfile.target_roles?.length > 0 && (
+              <> · {currentProfile.target_roles.join(', ')}</>
+            )}
+            {' · '}<a href="/profile" className="text-indigo-500 hover:underline">edit profile</a>
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           {scanStatus && <span className="text-sm text-gray-500">{scanStatus}</span>}
           {/* Split button: Run Scan + options chevron */}
@@ -313,20 +344,39 @@ export function MatchesPage() {
         </div>
       )}
 
-      {results.length === 0 ? (
+      {!resultPage || resultPage.total === 0 ? (
         <div className="text-center py-16 text-gray-400">
           No results yet. Run a scan to find matching jobs.
         </div>
       ) : (
-        <div className="space-y-3">
-          {results.map((r) => (
-            <ResultCard
-              key={r.id}
-              result={r}
-              onStatusChange={() => loadResults(currentProfile.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {resultPage.items.map((r) => (
+              <ResultCard
+                key={r.id}
+                result={r}
+                onStatusChange={() => loadResults(currentProfile.id)}
+              />
+            ))}
+          </div>
+
+          {resultPage.total > resultPage.page_size && (
+            <div className="flex items-center justify-between mt-6 text-sm text-gray-600">
+              <span className="tabular-nums">
+                {((page - 1) * resultPage.page_size) + 1}–{Math.min(page * resultPage.page_size, resultPage.total)} of {resultPage.total.toLocaleString()}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className={btnIdle}>‹</button>
+                {pageItems(page, totalPages).map((item, i) =>
+                  item === '…'
+                    ? <span key={`ellipsis-${i}`} className="px-1 text-gray-400 select-none">…</span>
+                    : <button key={item} onClick={() => setPage(item)} className={item === page ? btnActive : btnIdle}>{item}</button>
+                )}
+                <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages} className={btnIdle}>›</button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
