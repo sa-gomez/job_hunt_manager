@@ -369,3 +369,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ answers, platform: PLATFORM })
   }
 })
+
+if (typeof module !== 'undefined') {
+  module.exports = {
+    boolToYesNo, setField, setNativeSelect,
+    getReactSelectContainer, findByLabel,
+    readGreenhouseAnswers, readLeverAnswers,
+  }
+}
