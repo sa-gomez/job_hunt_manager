@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { applicationProfileApi, companiesApi, credentialsApi, employerAnswersApi, profileApi, type ApplicationProfileUpsert, type CompanyInfo, type CredentialInfo, type EmployerAnswerItem, type EmployerSlugSummary, type Profile, type ProfileCreate } from '../api/client'
+import { applicationProfileApi, companiesApi, credentialsApi, employerAnswersApi, profileApi, resumeApi, type ApplicationProfileUpsert, type CompanyInfo, type CredentialInfo, type EmployerAnswerItem, type EmployerSlugSummary, type Profile, type ProfileCreate, type ResumeInfo } from '../api/client'
 import { BulkAddCompaniesModal } from '../components/BulkAddCompaniesModal'
 
 const CITIES = [
@@ -381,6 +381,111 @@ function CompanyTagInput({
           onConfirm={(companies) => { onChange(companies); setShowModal(false) }}
           onClose={() => setShowModal(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function ResumeSection({ profileId }: { profileId: number }) {
+  const [resumes, setResumes] = useState<ResumeInfo[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const load = () => resumeApi.list(profileId).then(setResumes)
+
+  useEffect(() => { load() }, [profileId])
+
+  const handleFile = async (file: File) => {
+    setError(null)
+    setUploading(true)
+    try {
+      await resumeApi.upload(profileId, file)
+      await load()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Upload failed'
+      setError(msg)
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  const remove = async (resumeId: number) => {
+    await resumeApi.delete(profileId, resumeId)
+    await load()
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <h2 className="text-lg font-semibold text-gray-800">Resumes</h2>
+
+      <div
+        onDrop={handleDrop}
+        onDragOver={e => e.preventDefault()}
+        onClick={() => inputRef.current?.click()}
+        className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.doc,.docx"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+        />
+        {uploading ? (
+          <p className="text-sm text-indigo-600">Uploading…</p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600">Drop a file here or <span className="text-indigo-600 underline">browse</span></p>
+            <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX · max 10 MB</p>
+          </>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {resumes.length > 0 && (
+        <ul className="space-y-2">
+          {resumes.map(r => (
+            <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800 truncate">{r.filename}</p>
+                <p className="text-xs text-gray-400">{formatSize(r.file_size)} · {new Date(r.uploaded_at).toLocaleDateString()}</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <a
+                  href={resumeApi.downloadUrl(profileId, r.id)}
+                  download={r.filename}
+                  className="text-xs text-indigo-600 hover:underline"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => remove(r.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors"
+                  title="Delete resume"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M6 2a1 1 0 0 0-1 1H3a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2h-2a1 1 0 0 0-1-1H6zM4 7a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8a1 1 0 1 1 2 0v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a1 1 0 0 1 1-1z" />
+                  </svg>
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -1116,6 +1221,7 @@ export function ProfilePage() {
         </button>
       </form>
 
+      {current && <ResumeSection profileId={current.id} />}
       {current && <CredentialsSection profileId={current.id} />}
       {current && <EmployerAnswersSection profileId={current.id} />}
       {current && <ApplicationProfileSection profileId={current.id} />}
