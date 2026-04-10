@@ -73,7 +73,14 @@ function getReactSelectContainer(el) {
   let node = el.parentElement
   while (node && node !== document.body) {
     const cls = typeof node.className === 'string' ? node.className : ''
-    if (cls.split(' ').some(c => c.endsWith('-container'))) return node
+    if (cls.split(' ').some(c => c.endsWith('-container'))) {
+      // Confirm it's a real react-select by requiring a direct -control child
+      const hasControl = Array.from(node.children).some(
+        child => typeof child.className === 'string' &&
+                 child.className.split(' ').some(c => c.endsWith('-control'))
+      )
+      if (hasControl) return node
+    }
     node = node.parentElement
   }
   return null
@@ -356,8 +363,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     // Respond immediately so the popup shows "Filled" right away;
     // the async field filling continues in the background.
     sendResponse({ ok: true, platform: PLATFORM })
-    if (PLATFORM === 'greenhouse') fillGreenhouse(msg.fillData)
-    else if (PLATFORM === 'lever') fillLever(msg.fillData)
+    if (PLATFORM === 'greenhouse') fillGreenhouse(msg.fillData).catch(err => console.error('[autofill] fillGreenhouse error:', err))
+    else if (PLATFORM === 'lever') fillLever(msg.fillData).catch(err => console.error('[autofill] fillLever error:', err))
   }
   if (msg.type === 'GET_JOB_INFO') {
     sendResponse({ jobInfo: extractJobInfo(), platform: PLATFORM })
