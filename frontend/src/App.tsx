@@ -1,5 +1,6 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
+import { ApplicationsPage } from './pages/ApplicationsPage'
 import { KanbanPage } from './pages/KanbanPage'
 import { MatchesPage } from './pages/MatchesPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/matches" element={<MatchesPage />} />
           <Route path="/board" element={<KanbanPage />} />
           <Route path="/resume" element={<ResumeToolsPage />} />
+          <Route path="/applications" element={<ApplicationsPage />} />
         </Routes>
       </div>
     </Router>

@@ -7,5 +7,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://localhost/job_hunt_manager"
     encryption_key: str = ""  # Fernet key — must be set in .env for production
 
+    # Google Sheets integration
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_sheet_id: str = ""
+    google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+    sheets_poll_interval: int = 300  # seconds between sheet → DB polls
+
 
 settings = Settings()

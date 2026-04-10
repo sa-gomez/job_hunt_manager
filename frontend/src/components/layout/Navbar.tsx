@@ -15,6 +15,7 @@ export function Navbar() {
       <NavLink to="/matches" className={linkClass}>Matches</NavLink>
       <NavLink to="/board" className={linkClass}>Board</NavLink>
       <NavLink to="/resume" className={linkClass}>Resume</NavLink>
+      <NavLink to="/applications" className={linkClass}>Applications</NavLink>
     </nav>
   )
 }

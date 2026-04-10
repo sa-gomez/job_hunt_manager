@@ -262,6 +262,78 @@ export const resumeBuilderApi = {
   },
 }
 
+export const STAGES = [
+  'applied',
+  'recruiter_screen',
+  'technical',
+  'interview_rounds',
+  'offer_negotiating',
+  'rejected',
+  'withdrawn',
+] as const
+
+export type Stage = typeof STAGES[number]
+
+export const STAGE_LABELS: Record<Stage, string> = {
+  applied: 'Applied',
+  recruiter_screen: 'Recruiter Screen',
+  technical: 'Technical',
+  interview_rounds: 'Interview Rounds',
+  offer_negotiating: 'Offer / Negotiating',
+  rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
+}
+
+export interface ApplicationRecord {
+  id: number
+  profile_id: number
+  job_id: number | null
+  company: string
+  job_title: string
+  job_url: string | null
+  stage: Stage
+  notes: string | null
+  recruiter_name: string | null
+  applied_at: string | null
+  created_at: string
+  last_updated: string
+}
+
+export interface ApplicationCreate {
+  profile_id: number
+  company: string
+  job_title: string
+  job_url?: string
+  stage?: Stage
+  notes?: string
+  recruiter_name?: string
+  applied_at?: string
+  job_id?: number
+}
+
+export type ApplicationUpdate = Partial<Omit<ApplicationCreate, 'profile_id' | 'job_id'>>
+
+export const applicationsApi = {
+  list: (profileId: number) =>
+    api.get<ApplicationRecord[]>('/applications', { params: { profile_id: profileId } }).then(r => r.data),
+  create: (data: ApplicationCreate) =>
+    api.post<ApplicationRecord>('/applications', data).then(r => r.data),
+  update: (id: number, data: ApplicationUpdate) =>
+    api.patch<ApplicationRecord>(`/applications/${id}`, data).then(r => r.data),
+  remove: (id: number) => api.delete(`/applications/${id}`),
+  sync: (profileId: number) =>
+    api.post<{ status: string; message: string }>('/applications/sync', null, {
+      params: { profile_id: profileId },
+    }).then(r => r.data),
+}
+
+export const googleAuthApi = {
+  status: (profileId: number) =>
+    api.get<{ connected: boolean }>('/auth/google/status', { params: { profile_id: profileId } }).then(r => r.data),
+  getAuthUrl: (profileId: number) =>
+    api.get<{ auth_url: string }>('/auth/google', { params: { profile_id: profileId } }).then(r => r.data),
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),
