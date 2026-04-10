@@ -73,11 +73,12 @@ function getReactSelectContainer(el) {
   let node = el.parentElement
   while (node && node !== document.body) {
     const cls = typeof node.className === 'string' ? node.className : ''
-    if (cls.split(' ').some(c => c.endsWith('-container'))) {
-      // Confirm it's a real react-select by requiring a direct -control child
+    // Match both dash-suffix (css-xyz-container) and BEM double-underscore (prefix__container) formats
+    if (cls.split(' ').some(c => c.endsWith('-container') || c.endsWith('__container'))) {
+      // Confirm it's a real react-select by requiring a direct -control / __control child
       const hasControl = Array.from(node.children).some(
         child => typeof child.className === 'string' &&
-                 child.className.split(' ').some(c => c.endsWith('-control'))
+                 child.className.split(' ').some(c => c.endsWith('-control') || c.endsWith('__control'))
       )
       if (hasControl) return node
     }
@@ -95,9 +96,9 @@ async function clickReactSelectOption(container, value) {
   if (!container || value == null || value === '') return
   const lower = String(value).toLowerCase()
 
-  // The control is the first direct child div with "-control" in its class
+  // The control is the first direct child div with "-control" / "__control" in its class
   const control = Array.from(container.children).find(
-    el => typeof el.className === 'string' && el.className.includes('-control')
+    el => typeof el.className === 'string' && (el.className.includes('-control') || el.className.includes('__control'))
   ) ?? container
 
   // Open the dropdown
@@ -126,6 +127,19 @@ async function clickReactSelectOption(container, value) {
 
   // Small gap before the next dropdown interaction
   await new Promise(r => setTimeout(r, 100))
+}
+
+// Walk up from el (up to maxDepth levels) looking for a custom-select single-value
+// display element. Works for react-select (any class prefix/format) and Greenhouse's
+// custom select widget where the input is nested inside the value container.
+function findSingleValueDisplay(el, maxDepth = 6) {
+  let node = el.parentElement
+  for (let i = 0; i < maxDepth && node && node !== document.body; i++) {
+    const sv = node.querySelector('[class*="single-value"], [class*="singleValue"]')
+    if (sv) return sv
+    node = node.parentElement
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -297,13 +311,14 @@ function readGreenhouseAnswers() {
       const opt = el.options[el.selectedIndex]
       value = opt?.text?.trim() ?? ''
       if (!value || value.toLowerCase().startsWith('select')) continue
-    } else if (isInsideReactSelect(el)) {
-      // Read the currently displayed value from the react-select container
-      const container = getReactSelectContainer(el)
-      const singleValue = container?.querySelector('[class*="-singleValue"]')
-      value = singleValue?.textContent?.trim() ?? ''
     } else {
       value = el.value?.trim() ?? ''
+      if (!value) {
+        // el.value is empty — likely a hidden proxy input for a custom select widget.
+        // Walk up ancestors to find the visible single-value display element.
+        const svEl = findSingleValueDisplay(el)
+        if (svEl) value = svEl.textContent?.trim() ?? ''
+      }
     }
 
     if (value) {
@@ -332,12 +347,12 @@ function readLeverAnswers() {
       const opt = el.options[el.selectedIndex]
       value = opt?.text?.trim() ?? ''
       if (!value || value.toLowerCase().startsWith('select')) continue
-    } else if (isInsideReactSelect(el)) {
-      const container = getReactSelectContainer(el)
-      const singleValue = container?.querySelector('[class*="-singleValue"]')
-      value = singleValue?.textContent?.trim() ?? ''
     } else {
       value = el.value?.trim() ?? ''
+      if (!value) {
+        const svEl = findSingleValueDisplay(el)
+        if (svEl) value = svEl.textContent?.trim() ?? ''
+      }
     }
     if (value) {
       const key = rawText.replace(/\*/g, '').replace(/\s+/g, ' ').trim().toLowerCase()

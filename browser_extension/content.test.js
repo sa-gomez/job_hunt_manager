@@ -88,6 +88,20 @@ describe('getReactSelectContainer', () => {
     expect(getReactSelectContainer(document.getElementById('plain'))).toBeNull()
   })
 
+  test('detects BEM double-underscore naming (e.g. greenhouse__container)', () => {
+    document.body.innerHTML = `
+      <div class="greenhouse__container">
+        <div class="greenhouse__control">
+          <input id="bem-input" />
+        </div>
+      </div>
+    `
+    const input = document.getElementById('bem-input')
+    const container = getReactSelectContainer(input)
+    expect(container).not.toBeNull()
+    expect(container.className).toContain('__container')
+  })
+
   test('returns null for null input', () => {
     expect(getReactSelectContainer(null)).toBeNull()
   })
@@ -168,6 +182,38 @@ describe('readGreenhouseAnswers', () => {
     `
     const answers = readGreenhouseAnswers()
     expect(answers['work authorization']).toBe('Yes')
+  })
+
+  test('reads a BEM-style react-select (e.g. greenhouse__container naming)', () => {
+    document.body.innerHTML = `
+      <label for="rs-bem-input">How did you hear about us?</label>
+      <div class="greenhouse__container">
+        <div class="greenhouse__control">
+          <div class="greenhouse__single-value">LinkedIn</div>
+          <input id="rs-bem-input" value="" />
+        </div>
+      </div>
+    `
+    const answers = readGreenhouseAnswers()
+    expect(answers['how did you hear about us?']).toBe('LinkedIn')
+  })
+
+  test('reads a sibling custom-select (hidden input + visual container are siblings)', () => {
+    // Greenhouse SPA pattern: label points to a hidden submission input; the
+    // visual select__container lives alongside it in the same parent wrapper.
+    document.body.innerHTML = `
+      <div class="question-wrapper">
+        <label for="question_123">Pronouns *</label>
+        <input id="question_123" class="select__input" value="" />
+        <div class="select__container">
+          <div class="select__control">
+            <div class="select__single-value">She/Her</div>
+          </div>
+        </div>
+      </div>
+    `
+    const answers = readGreenhouseAnswers()
+    expect(answers['pronouns']).toBe('She/Her')
   })
 })
 
