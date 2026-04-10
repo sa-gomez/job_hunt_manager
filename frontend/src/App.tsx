@@ -3,6 +3,7 @@ import { Navbar } from './components/layout/Navbar'
 import { KanbanPage } from './pages/KanbanPage'
 import { MatchesPage } from './pages/MatchesPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ResumeToolsPage } from './pages/ResumeToolsPage'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/matches" element={<MatchesPage />} />
           <Route path="/board" element={<KanbanPage />} />
+          <Route path="/resume" element={<ResumeToolsPage />} />
         </Routes>
       </div>
     </Router>
