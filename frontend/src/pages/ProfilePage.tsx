@@ -744,7 +744,7 @@ function EmployerAnswersSection({ profileId }: { profileId: number }) {
             <button
               key={s.employer_slug}
               type="button"
-              onClick={() => selectSlug(s.employer_slug)}
+              onClick={() => selectedSlug === s.employer_slug ? (setSelectedSlug(null), setAnswers([])) : selectSlug(s.employer_slug)}
               className={`px-3 py-1 rounded-full text-sm border transition-colors ${
                 selectedSlug === s.employer_slug
                   ? 'bg-indigo-600 text-white border-indigo-600'
