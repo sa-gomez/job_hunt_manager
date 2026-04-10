@@ -386,6 +386,37 @@ function CompanyTagInput({
   )
 }
 
+function CollapsibleSection({ title, children, defaultOpen = true }: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white rounded-xl border border-gray-200">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left"
+      >
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-6 pb-6 space-y-4">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResumeSection({ profileId }: { profileId: number }) {
   const [resumes, setResumes] = useState<ResumeInfo[]>([])
   const [uploading, setUploading] = useState(false)
@@ -429,9 +460,7 @@ function ResumeSection({ profileId }: { profileId: number }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-gray-800">Resumes</h2>
-
+    <CollapsibleSection title="Resumes">
       <div
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
@@ -487,7 +516,7 @@ function ResumeSection({ profileId }: { profileId: number }) {
           ))}
         </ul>
       )}
-    </div>
+    </CollapsibleSection>
   )
 }
 
@@ -521,10 +550,9 @@ function CredentialsSection({ profileId }: { profileId: number }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Site Credentials</h2>
+    <CollapsibleSection title="Site Credentials">
       {creds.length > 0 && (
-        <div className="mb-4 space-y-2">
+        <div className="space-y-2">
           {creds.map((c) => (
             <div key={c.service} className="flex items-center justify-between py-2 border-b border-gray-100">
               <div>
@@ -586,7 +614,7 @@ function CredentialsSection({ profileId }: { profileId: number }) {
           {saving ? 'Saving…' : 'Save Credentials'}
         </button>
       </div>
-    </div>
+    </CollapsibleSection>
   )
 }
 
@@ -703,14 +731,11 @@ function EmployerAnswersSection({ profileId }: { profileId: number }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Employer-Specific Q&amp;A</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Answers stored per company slug (e.g. <code className="bg-gray-100 px-1 rounded">anthropic</code>).
-          The extension auto-fills these when you open that employer's job form, and saves new answers when you click "Save Answers" in the popup.
-        </p>
-      </div>
+    <CollapsibleSection title="Employer-Specific Q&A">
+      <p className="text-xs text-gray-500">
+        Answers stored per company slug (e.g. <code className="bg-gray-100 px-1 rounded">anthropic</code>).
+        The extension auto-fills these when you open that employer's job form, and saves new answers when you click "Save Answers" in the popup.
+      </p>
 
       {/* Slug pills */}
       {slugs.length > 0 && (
@@ -779,7 +804,7 @@ function EmployerAnswersSection({ profileId }: { profileId: number }) {
           </button>
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   )
 }
 
@@ -978,9 +1003,9 @@ function ApplicationProfileSection({ profileId }: { profileId: number }) {
   if (!loaded) return null
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-      <h2 className="text-lg font-semibold text-gray-900">Application Autofill</h2>
-      <p className="text-xs text-gray-500 -mt-3">
+    <CollapsibleSection title="Application Autofill">
+      <form onSubmit={handleSubmit} className="space-y-5">
+      <p className="text-xs text-gray-500">
         Stored separately from your profile — used by the browser extension to populate job application forms.
       </p>
 
@@ -1074,7 +1099,8 @@ function ApplicationProfileSection({ profileId }: { profileId: number }) {
       >
         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Autofill Settings'}
       </button>
-    </form>
+      </form>
+    </CollapsibleSection>
   )
 }
 
