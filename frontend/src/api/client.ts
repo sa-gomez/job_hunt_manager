@@ -216,6 +216,52 @@ export const resumeApi = {
     api.delete(`/resumes/${profileId}/${resumeId}`),
 }
 
+export interface ResumeContactInfo {
+  name: string
+  email?: string
+  phone?: string
+  location?: string
+  linkedin_url?: string
+  website_url?: string
+}
+
+export interface ResumeWorkExperience {
+  company: string
+  title: string
+  start_date?: string
+  end_date?: string
+  location?: string
+  bullets: string[]
+}
+
+export interface ResumeEducation {
+  institution: string
+  degree?: string
+  field?: string
+  graduation_year?: string
+  gpa?: string
+}
+
+export interface ResumeData {
+  contact: ResumeContactInfo
+  summary?: string
+  work_experience: ResumeWorkExperience[]
+  education: ResumeEducation[]
+  skills: string[]
+}
+
+export const resumeBuilderApi = {
+  generate: async (data: ResumeData): Promise<Blob> => {
+    const response = await fetch('/api/resume-builder/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to generate resume')
+    return response.blob()
+  },
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),
