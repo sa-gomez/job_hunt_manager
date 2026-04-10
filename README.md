@@ -13,6 +13,8 @@ Connects to Greenhouse, Lever, Google Jobs (via SerpAPI), and LinkedIn to pull o
 - **Kanban board** — drag jobs through New → Saved → Applied → Archived
 - **Credential manager** — stores service credentials (LinkedIn, SerpAPI) encrypted at rest with Fernet
 - **Scan progress log** — live per-step timer in the UI so you can see exactly what's happening during a scan
+- **Resume uploads** — upload and manage multiple resumes (PDF/DOCX); stored locally with an abstraction ready to swap to S3
+- **Application autofill** — stores your application profile (EEOC fields, visa status, cover letter template, etc.) and employer-specific Q&A answers
 
 ---
 
@@ -25,6 +27,7 @@ Connects to Greenhouse, Lever, Google Jobs (via SerpAPI), and LinkedIn to pull o
 | Frontend | React + TypeScript, Vite, Tailwind CSS |
 | Scraping | Playwright (LinkedIn), httpx (Greenhouse, Lever, SerpAPI) |
 | Encryption | `cryptography` Fernet |
+| File storage | Local filesystem (`~/.job_hunt_manager/`), abstracted for S3 swap |
 | Package manager | [uv](https://github.com/astral-sh/uv) |
 
 ---
@@ -122,7 +125,11 @@ Each job is scored 0–100% across four components:
 | Location | 15% | Remote/city match |
 | Salary | 10% | Whether the job's max salary meets your minimum |
 
-### 4. Track applications
+### 4. Upload resumes
+
+On the Profile page, upload one or more resumes (PDF or Word, max 10 MB each). Resumes are stored locally under `~/.job_hunt_manager/resumes/` and can be downloaded or deleted from the UI.
+
+### 5. Track applications
 
 Move jobs through the Kanban board (New → Saved → Applied → Archived) as you progress.
 
@@ -132,7 +139,15 @@ Move jobs through the Kanban board (New → Saved → Applied → Archived) as y
 
 A companion Chrome extension lets you autofill Greenhouse and Lever application forms directly from your profile, and automatically marks jobs as **Applied** in the app when you submit a form.
 
-See [browser_extension/README.md](browser_extension/README.md) for installation and usage instructions.
+**Supports:** Greenhouse (`boards.greenhouse.io`, `job-boards.greenhouse.io`) and Lever (`jobs.lever.co`)
+
+**Features:**
+- Autofills standard fields (name, email, phone, LinkedIn, etc.) and EEOC/compliance dropdowns
+- Handles both native HTML inputs and React-select dropdowns
+- Stores employer-specific Q&A answers per company slug so they're reused on future applications
+- Detects form submission and marks the job as Applied in the main app
+
+**To install:** Open `chrome://extensions` → Enable developer mode → Load unpacked → select `browser_extension/`
 
 ---
 
