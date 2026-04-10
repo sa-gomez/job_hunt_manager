@@ -135,6 +135,64 @@ export const companiesApi = {
   list: () => api.get<CompanyInfo[]>('/companies').then(r => r.data),
 }
 
+export interface ApplicationProfile {
+  id: number
+  profile_id: number
+  created_at: string
+  updated_at: string
+  resume_text: string | null
+  cover_letter_template: string | null
+  name_pronunciation: string | null
+  start_date: string | null
+  timeline_notes: string | null
+  requires_visa_sponsorship: boolean | null
+  requires_future_visa_sponsorship: boolean | null
+  willing_to_relocate: boolean | null
+  office_availability: string | null
+  country: string | null
+  eeoc_gender: string | null
+  eeoc_ethnicity: string | null
+  eeoc_race: string | null
+  eeoc_veteran_status: string | null
+  eeoc_disability_status: string | null
+  custom_answers: Record<string, string>
+}
+
+export type ApplicationProfileUpsert = Omit<ApplicationProfile, 'id' | 'profile_id' | 'created_at' | 'updated_at'>
+
+export const applicationProfileApi = {
+  get: (profileId: number) =>
+    api.get<ApplicationProfile>(`/application-profile/${profileId}`).then(r => r.data),
+  upsert: (profileId: number, data: ApplicationProfileUpsert) =>
+    api.put<ApplicationProfile>(`/application-profile/${profileId}`, data).then(r => r.data),
+}
+
+export interface EmployerAnswerItem {
+  question_label: string
+  answer: string
+}
+
+export interface EmployerAnswerGroup {
+  employer_slug: string
+  answers: EmployerAnswerItem[]
+}
+
+export interface EmployerSlugSummary {
+  employer_slug: string
+  answer_count: number
+}
+
+export const employerAnswersApi = {
+  listSlugs: (profileId: number) =>
+    api.get<EmployerSlugSummary[]>(`/employer-answers/${profileId}`).then(r => r.data),
+  get: (profileId: number, slug: string) =>
+    api.get<EmployerAnswerGroup>(`/employer-answers/${profileId}/${slug}`).then(r => r.data),
+  upsert: (profileId: number, slug: string, answers: EmployerAnswerItem[]) =>
+    api.put<EmployerAnswerGroup>(`/employer-answers/${profileId}/${slug}`, answers).then(r => r.data),
+  delete: (profileId: number, slug: string) =>
+    api.delete(`/employer-answers/${profileId}/${slug}`),
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),

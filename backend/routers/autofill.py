@@ -1,15 +1,107 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
+from backend.models.application_profile import ApplicationProfile
+from backend.models.employer_answer import EmployerAnswer
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.models.scan import ScanResult
 from backend.services.matching import score_job
 
 router = APIRouter(prefix="/api/autofill", tags=["autofill"])
+
+
+class FillData(BaseModel):
+    first_name: str
+    last_name: str
+    full_name: str
+    email: str | None
+    phone: str | None
+    location: str | None
+    linkedin_url: str | None
+    website_url: str | None
+    work_authorization: str | None
+    resume_text: str | None
+    cover_letter_template: str | None
+    name_pronunciation: str | None
+    start_date: str | None
+    timeline_notes: str | None
+    requires_visa_sponsorship: bool | None
+    requires_future_visa_sponsorship: bool | None
+    willing_to_relocate: bool | None
+    office_availability: str | None
+    country: str | None
+    eeoc_gender: str | None
+    eeoc_ethnicity: str | None
+    eeoc_race: str | None
+    eeoc_veteran_status: str | None
+    eeoc_disability_status: str | None
+    custom_answers: dict[str, str]
+
+
+@router.get("/fill-data/{profile_id}", response_model=FillData)
+async def get_fill_data(
+    profile_id: int,
+    employer_slug: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    profile = await db.get(UserProfile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    ap = (
+        await db.execute(
+            select(ApplicationProfile).where(ApplicationProfile.profile_id == profile_id)
+        )
+    ).scalar_one_or_none()
+
+    # Employer-specific answers for this slug (overrides global custom_answers)
+    employer_answers: dict[str, str] = {}
+    if employer_slug:
+        ea_rows = (
+            await db.execute(
+                select(EmployerAnswer).where(
+                    EmployerAnswer.profile_id == profile_id,
+                    EmployerAnswer.employer_slug == employer_slug,
+                )
+            )
+        ).scalars().all()
+        employer_answers = {row.question_label: row.answer for row in ea_rows}
+
+    global_answers: dict[str, str] = ap.custom_answers if ap else {}
+    merged_answers = {**global_answers, **employer_answers}
+
+    names = (profile.full_name or "").split(" ", 1)
+    return FillData(
+        first_name=names[0],
+        last_name=names[1] if len(names) > 1 else "",
+        full_name=profile.full_name or "",
+        email=profile.email,
+        phone=profile.phone,
+        location=profile.location,
+        linkedin_url=profile.linkedin_url,
+        website_url=profile.website_url,
+        work_authorization=profile.work_authorization,
+        resume_text=ap.resume_text if ap else None,
+        cover_letter_template=ap.cover_letter_template if ap else None,
+        name_pronunciation=ap.name_pronunciation if ap else None,
+        start_date=ap.start_date if ap else None,
+        timeline_notes=ap.timeline_notes if ap else None,
+        requires_visa_sponsorship=ap.requires_visa_sponsorship if ap else None,
+        requires_future_visa_sponsorship=ap.requires_future_visa_sponsorship if ap else None,
+        willing_to_relocate=ap.willing_to_relocate if ap else None,
+        office_availability=ap.office_availability if ap else None,
+        country=ap.country if ap else None,
+        eeoc_gender=ap.eeoc_gender if ap else None,
+        eeoc_ethnicity=ap.eeoc_ethnicity if ap else None,
+        eeoc_race=ap.eeoc_race if ap else None,
+        eeoc_veteran_status=ap.eeoc_veteran_status if ap else None,
+        eeoc_disability_status=ap.eeoc_disability_status if ap else None,
+        custom_answers=merged_answers,
+    )
 
 
 class AppliedPayload(BaseModel):
