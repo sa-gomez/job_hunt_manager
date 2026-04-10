@@ -26,24 +26,32 @@ function buildFillPreview(fd) {
     return null
   }
 
-  const fields = [
-    ['first name',      fd.first_name],
-    ['last name',       fd.last_name],
-    ['email',           fd.email],
-    ['phone',           fd.phone],
+  // Fields present on virtually all Greenhouse / Lever job forms.
+  const coreFields = [
+    ['first name',   fd.first_name],
+    ['last name',    fd.last_name],
+    ['email',        fd.email],
+    ['phone',        fd.phone],
+    ['linkedin',     fd.linkedin_url],
+    ['website',      fd.website_url],
+    ['resume',       fd.resume_text ? '(set)' : null],
+    ['cover letter', fd.cover_letter_template ? '(set)' : null],
+  ]
+
+  // Fields common on Greenhouse but not guaranteed on every board, and fields
+  // that are employer-specific enough that some boards won't have them at all
+  // (e.g. name pronunciation, timeline, and in-person availability are mostly
+  // Anthropic-specific). setByLabel silently skips any label it can't find.
+  const extendedFields = [
     ['location',        fd.location],
-    ['linkedin',        fd.linkedin_url],
-    ['website',         fd.website_url],
     ['work auth',       fd.work_authorization],
-    ['start date',      fd.start_date],
-    ['timeline',        fd.timeline_notes],
-    ['office avail',    fd.office_availability],
     ['country',         fd.country],
     ['visa sponsor',    boolDisplay(fd.requires_visa_sponsorship)],
     ['future visa',     boolDisplay(fd.requires_future_visa_sponsorship)],
     ['relocate',        boolDisplay(fd.willing_to_relocate)],
-    ['cover letter',    fd.cover_letter_template ? '(set)' : null],
-    ['resume',          fd.resume_text ? '(set)' : null],
+    ['start date',      fd.start_date],
+    ['timeline',        fd.timeline_notes],
+    ['office avail',    fd.office_availability],
     ['eeoc gender',     fd.eeoc_gender],
     ['eeoc ethnicity',  fd.eeoc_ethnicity],
     ['eeoc race',       fd.eeoc_race],
@@ -52,16 +60,22 @@ function buildFillPreview(fd) {
   ]
 
   const customEntries = Object.entries(fd.custom_answers ?? {})
-  const filledCount = fields.filter(([, v]) => v != null && v !== '').length + customEntries.length
-  const totalCount = fields.length + customEntries.length
 
-  const rows = fields.map(([key, val]) => {
-    const isEmpty = val == null || val === ''
-    return `<div class="fill-row">
-      <span class="fill-key">${escHtml(key)}</span>
-      <span class="fill-val${isEmpty ? ' empty' : ''}">${isEmpty ? '—' : escHtml(String(val))}</span>
-    </div>`
-  }).join('')
+  const filledCount =
+    coreFields.filter(([, v]) => v != null && v !== '').length +
+    extendedFields.filter(([, v]) => v != null && v !== '').length +
+    customEntries.length
+  const totalCount = coreFields.length + extendedFields.length + customEntries.length
+
+  function renderRows(fields) {
+    return fields.map(([key, val]) => {
+      const isEmpty = val == null || val === ''
+      return `<div class="fill-row">
+        <span class="fill-key">${escHtml(key)}</span>
+        <span class="fill-val${isEmpty ? ' empty' : ''}">${isEmpty ? '—' : escHtml(String(val))}</span>
+      </div>`
+    }).join('')
+  }
 
   const customSection = customEntries.length > 0
     ? `<div class="fill-section">custom answers</div>` +
@@ -78,7 +92,11 @@ function buildFillPreview(fd) {
         <span id="fill-arrow">▶</span>
       </div>
       <div class="fill-table" id="fill-table">
-        ${rows}${customSection}
+        <div class="fill-section">core</div>
+        ${renderRows(coreFields)}
+        <div class="fill-section">extended</div>
+        ${renderRows(extendedFields)}
+        ${customSection}
       </div>
     </div>
   `
