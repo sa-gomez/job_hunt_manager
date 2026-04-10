@@ -179,44 +179,39 @@ function boolToYesNo(val) {
 // ---------------------------------------------------------------------------
 
 async function fillGreenhouse(fd) {
-  // Standard fields by selector (sync — native inputs)
+  // ── Core: present on virtually every Greenhouse form ──────────────────────
+  // New SPA job-boards (job-boards.greenhouse.io) use React with id selectors.
   setField('#first_name', fd.first_name)
   setField('#last_name', fd.last_name)
   setField('#email', fd.email)
   setField('#phone', fd.phone)
   setField('#job_application_location', fd.location)
 
-  // Rails-style name attributes (classic boards.greenhouse.io embeds)
+  // Classic embedded boards (boards.greenhouse.io) use Rails-style name attrs.
   setField('input[name="job_application[first_name]"]', fd.first_name)
   setField('input[name="job_application[last_name]"]', fd.last_name)
   setField('input[name="job_application[email]"]', fd.email)
   setField('input[name="job_application[phone]"]', fd.phone)
 
-  // Text / textarea fields by label (may be native inputs)
   await setByLabel('linkedin', fd.linkedin_url)
   await setByLabel('website', fd.website_url)
   await setByLabel('portfolio', fd.website_url)
-  await setByLabel('work authorization', fd.work_authorization)
-  await setByLabel('authorized to work', fd.work_authorization)
-  await setByLabel('name pronunciation', fd.name_pronunciation)
-  await setByLabel('start date', fd.start_date)
-  await setByLabel('timeline', fd.timeline_notes)
-  await setByLabel('work location', fd.location)
   await setByLabel('cover letter', fd.cover_letter_template)
   await setByLabel('additional information', fd.cover_letter_template)
 
-  // Dropdowns (likely react-select on new Greenhouse job-boards)
+  // ── Common: appear on many Greenhouse boards but not all ─────────────────
+  await setByLabel('work location', fd.location)
+  await setByLabel('work authorization', fd.work_authorization)
+  await setByLabel('authorized to work', fd.work_authorization)
   await setByLabel('country', fd.country)
   await setByLabel('visa sponsorship', boolToYesNo(fd.requires_visa_sponsorship))
   await setByLabel('sponsorship required', boolToYesNo(fd.requires_visa_sponsorship))
   await setByLabel('future visa', boolToYesNo(fd.requires_future_visa_sponsorship))
   await setByLabel('future sponsorship', boolToYesNo(fd.requires_future_visa_sponsorship))
   await setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
-  await setByLabel('in-person', fd.office_availability)
-  await setByLabel('office availability', fd.office_availability)
-  await setByLabel('on-site', fd.office_availability)
 
-  // EEOC (Hispanic/Latino is a separate ethnicity Yes/No, not a race option)
+  // EEOC self-identification (present on many but not all Greenhouse boards;
+  // Hispanic/Latino is a separate Yes/No ethnicity question, not a race option)
   await setByLabel('hispanic', fd.eeoc_ethnicity)
   await setByLabel('latino', fd.eeoc_ethnicity)
   await setByLabel('gender', fd.eeoc_gender)
@@ -225,26 +220,45 @@ async function fillGreenhouse(fd) {
   await setByLabel('veteran', fd.eeoc_veteran_status)
   await setByLabel('disability', fd.eeoc_disability_status)
 
-  // Custom Q&A — employer-specific answers matched by label substring
+  // ── Extended: employer-specific questions; setByLabel silently skips ──────
+  // These appear on some employers but not others. For example:
+  //   name pronunciation  → Anthropic and a handful of others
+  //   timeline / start date → Anthropic-style scheduling questions
+  //   in-person / office availability / on-site → Anthropic in-office question
+  // Users can also cover these (or override them) via Employer-Specific Q&A
+  // for precise per-employer label matching.
+  await setByLabel('name pronunciation', fd.name_pronunciation)
+  await setByLabel('start date', fd.start_date)
+  await setByLabel('timeline', fd.timeline_notes)
+  await setByLabel('in-person', fd.office_availability)
+  await setByLabel('office availability', fd.office_availability)
+  await setByLabel('on-site', fd.office_availability)
+
+  // ── Custom Q&A: per-employer answers matched by label substring ───────────
   for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
     await setByLabel(labelKey, answer)
   }
 }
 
 async function fillLever(fd) {
+  // ── Core: standard Lever application fields (always present) ─────────────
   setField('input[name="name"]', fd.full_name)
   setField('input[name="email"]', fd.email)
   setField('input[name="phone"]', fd.phone)
   setField('input[name="urls[LinkedIn]"]', fd.linkedin_url)
   setField('input[name="urls[Portfolio]"]', fd.website_url)
 
+  // ── Common: label-based fields present on many Lever postings ────────────
+  await setByLabel('country', fd.country)
+  await setByLabel('visa', boolToYesNo(fd.requires_visa_sponsorship))
+  await setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
+
+  // ── Extended: employer-specific; silently skipped if label not found ──────
   await setByLabel('name pronunciation', fd.name_pronunciation)
   await setByLabel('start date', fd.start_date)
   await setByLabel('timeline', fd.timeline_notes)
-  await setByLabel('visa', boolToYesNo(fd.requires_visa_sponsorship))
-  await setByLabel('relocation', boolToYesNo(fd.willing_to_relocate))
-  await setByLabel('country', fd.country)
 
+  // ── Custom Q&A: per-employer answers matched by label substring ───────────
   for (const [labelKey, answer] of Object.entries(fd.custom_answers ?? {})) {
     await setByLabel(labelKey, answer)
   }
