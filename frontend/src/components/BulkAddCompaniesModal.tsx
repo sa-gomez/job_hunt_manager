@@ -18,6 +18,23 @@ export function BulkAddCompaniesModal({ existing, onConfirm, onClose }: Props) {
     companiesApi.list().then(setCompanies)
   }, [])
 
+  // Once the registry loads, move manually-typed companies (those in `existing`
+  // but not in the known registry) into the paste textarea so the user can see
+  // and edit them. Remove them from `checked` to avoid double-counting.
+  useEffect(() => {
+    if (companies.length === 0) return
+    const knownNames = new Set(companies.map(c => c.name))
+    const manual = existing.filter(name => !knownNames.has(name))
+    if (manual.length > 0) {
+      setPasteText(manual.join('\n'))
+      setChecked(prev => {
+        const next = new Set(prev)
+        manual.forEach(name => next.delete(name))
+        return next
+      })
+    }
+  }, [companies]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
