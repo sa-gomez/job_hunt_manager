@@ -193,6 +193,29 @@ export const employerAnswersApi = {
     api.delete(`/employer-answers/${profileId}/${slug}`),
 }
 
+export interface ResumeInfo {
+  id: number
+  profile_id: number
+  filename: string
+  content_type: string
+  file_size: number
+  uploaded_at: string
+}
+
+export const resumeApi = {
+  list: (profileId: number) =>
+    api.get<ResumeInfo[]>(`/resumes/${profileId}`).then(r => r.data),
+  upload: (profileId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<ResumeInfo>(`/resumes/${profileId}`, form).then(r => r.data)
+  },
+  downloadUrl: (profileId: number, resumeId: number) =>
+    `/api/resumes/${profileId}/${resumeId}/download`,
+  delete: (profileId: number, resumeId: number) =>
+    api.delete(`/resumes/${profileId}/${resumeId}`),
+}
+
 export const jobsApi = {
   results: (profileId: number, page = 1, status?: string) =>
     api.get<ScanResultPage>('/results', { params: { profile_id: profileId, page, status } }).then(r => r.data),
