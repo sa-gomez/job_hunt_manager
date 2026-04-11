@@ -1,9 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from backend.database import get_db
 from backend.schemas.scan import ScanRequest, ScanResponse
 from backend.services.scan_orchestrator import cancel_scan, get_scan_state, run_scan
 
@@ -14,10 +12,9 @@ router = APIRouter(prefix="/api/scan", tags=["scan"])
 async def trigger_scan(
     body: ScanRequest,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ):
     scan_id = str(uuid.uuid4())
-    background_tasks.add_task(run_scan, scan_id, body.profile_id, db, body.sources)
+    background_tasks.add_task(run_scan, scan_id, body.profile_id, body.sources)
     return ScanResponse(
         scan_id=scan_id,
         status="running",
