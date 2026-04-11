@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  ApplicationRecord,
+  type ApplicationRecord,
   STAGE_LABELS,
   STAGES,
-  Stage,
+  type Stage,
   applicationsApi,
   googleAuthApi,
   profileApi,
