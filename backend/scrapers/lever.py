@@ -1,20 +1,14 @@
 import json
 import logging
-import re
 
 import httpx
 
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.scrapers.base import BaseScraper
-from backend.scrapers.registry import DEFAULT_LEVER_SLUGS, LEVER_SLUGS
+from backend.scrapers.registry import DEFAULT_LEVER_SLUGS, LEVER_SLUGS, normalize_company_name
 
 logger = logging.getLogger(__name__)
-
-
-def _normalize(name: str) -> str:
-    """Lowercase and strip all spaces and punctuation for fuzzy matching."""
-    return re.sub(r"[\s\-_.,&'/]", "", name.lower())
 
 
 class LeverScraper(BaseScraper):
@@ -40,7 +34,7 @@ class LeverScraper(BaseScraper):
 
         slugs = []
         for company in companies:
-            normalized = _normalize(company)
+            normalized = normalize_company_name(company)
             if normalized in LEVER_SLUGS:
                 slugs.append(LEVER_SLUGS[normalized])
             else:

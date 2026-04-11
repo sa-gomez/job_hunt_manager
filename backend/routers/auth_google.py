@@ -84,5 +84,5 @@ async def google_auth_callback(
 
     # Redirect back to the Applications page with a success flag
     return RedirectResponse(
-        url=f"http://localhost:5173/applications?profile_id={profile_id}&connected=true"
+        url=f"{settings.frontend_base_url}/applications?profile_id={profile_id}&connected=true"
     )

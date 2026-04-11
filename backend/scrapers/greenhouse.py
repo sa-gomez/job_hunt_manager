@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 from html.parser import HTMLParser
 
 import httpx
@@ -8,14 +7,9 @@ import httpx
 from backend.models.job import JobPosting
 from backend.models.profile import UserProfile
 from backend.scrapers.base import BaseScraper
-from backend.scrapers.registry import DEFAULT_GREENHOUSE_SLUGS, GREENHOUSE_SLUGS
+from backend.scrapers.registry import DEFAULT_GREENHOUSE_SLUGS, GREENHOUSE_SLUGS, normalize_company_name
 
 logger = logging.getLogger(__name__)
-
-
-def _normalize(name: str) -> str:
-    """Lowercase and strip all spaces and punctuation for fuzzy matching."""
-    return re.sub(r"[\s\-_.,&'/]", "", name.lower())
 
 
 class _HTMLStripper(HTMLParser):
@@ -59,7 +53,7 @@ class GreenhouseScraper(BaseScraper):
 
         slugs = []
         for company in companies:
-            normalized = _normalize(company)
+            normalized = normalize_company_name(company)
             if normalized in GREENHOUSE_SLUGS:
                 slugs.append(GREENHOUSE_SLUGS[normalized])
             else:

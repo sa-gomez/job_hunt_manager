@@ -154,19 +154,19 @@ COMPANIES: list[CompanyInfo] = [
 ]
 
 
-def _normalize(name: str) -> str:
+def normalize_company_name(name: str) -> str:
     return re.sub(r"[\s\-_.,&'/]", "", name.lower())
 
 
 # Pre-built lookup dicts used by the scrapers
 GREENHOUSE_SLUGS: dict[str, str] = {
-    _normalize(c.name): c.greenhouse_slug
+    normalize_company_name(c.name): c.greenhouse_slug
     for c in COMPANIES
     if c.greenhouse_slug
 }
 
 LEVER_SLUGS: dict[str, str] = {
-    _normalize(c.name): c.lever_slug
+    normalize_company_name(c.name): c.lever_slug
     for c in COMPANIES
     if c.lever_slug
 }
